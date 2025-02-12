@@ -149,10 +149,15 @@ def supervisor_node(state: State) -> Command[Literal[*members, END]]:
     """
     prompt = build_system_prompt()
     messages = [SystemMessage(content=prompt)] + state["messages"]
-    response = llm.with_structured_output(Router).invoke(messages)
+    try:
+        response = llm.with_structured_output(Router).invoke(messages)
+    except Exception as e:
+        logging.error(f"Error invoking LLM: {e}")
+        fallback_message = AIMessage(content="An error occurred while processing the request.", name="supervisor")
+        return Command(goto="FINISH", update={"next": "FINISH", "messages": [fallback_message]})
     logging.info(f"Supervisor response: {response}")
 
-    goto = END if response["next"] == "FINISH" else response["next"]
+    next_worker = END if response["next"] == "FINISH" else response["next"]
 
     ai_message = AIMessage(content=response["messages"], name="supervisor")
-    return Command(goto=goto, update={"next": goto, "messages": [ai_message]})
+    return Command(goto=next_worker, update={"next": next_worker, "messages": [ai_message]})
