@@ -132,10 +132,10 @@ class Router(TypedDict):
 llm = ChatOpenAI(model_name="gpt-4o")
 
 def supervisor_node(state: State) -> Command[Literal[*members, END]]:
-    messages = [SystemMessage(content=system_prompt)] + state["messages"]
+    messages = [SystemMessage(content=build_system_prompt())] + state["messages"]
 
     response = llm.with_structured_output(Router).invoke(messages)
-    print(f"Supervisor response: {response}")
+    logging.info(f"Supervisor response: {response}")
 
     goto = response["next"]
 
