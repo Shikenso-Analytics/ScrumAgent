@@ -1,4 +1,5 @@
 import time
+import logging
 from datetime import datetime
 from typing import Literal
 
@@ -69,7 +70,10 @@ members_infos = {
 
 members_specs = '\n\n'.join(members_infos.values())
 
-system_prompt = f"""
+def build_system_prompt() -> str:
+    current_time = datetime.utcnow().isoformat()
+    unix_timestamp = time.time()
+    return f"""
 You are a supervisor tasked with orchestrating a conversation among the following workers: {members}.
 Your job is to:
   1. Read and understand the user's request.
@@ -110,8 +114,8 @@ If no worker is needed, simply use:
   "messages": "Your final answer"
 }}
 
-The current time is {datetime.utcnow().isoformat()}.
-Unix timestamp: {time.time()}.
+The current time is {current_time}.
+Unix timestamp: {unix_timestamp}.
 
 Act as a careful orchestrator to ensure each worker is called appropriately, gather all partial results, then formulate a single final response that directly answers the user's request.
 """
@@ -125,11 +129,7 @@ class Router(TypedDict):
     messages: str
 
 
-# llm = ChatOpenAI(model_name="o3-mini")
 llm = ChatOpenAI(model_name="gpt-4o")
-
-
-# llm = ChatOpenAI(model_name="o1")
 
 def supervisor_node(state: State) -> Command[Literal[*members, END]]:
     messages = [SystemMessage(content=system_prompt)] + state["messages"]
