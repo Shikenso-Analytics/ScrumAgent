@@ -70,10 +70,7 @@ members_infos = {
 
 members_specs = '\n\n'.join(members_infos.values())
 
-def build_system_prompt() -> str:
-    current_time = datetime.utcnow().isoformat()
-    unix_timestamp = time.time()
-    return f"""
+SYST_PROMPT_TEMPLATE = """
 You are a supervisor tasked with orchestrating a conversation among the following workers: {members}.
 Your job is to:
   1. Read and understand the user's request.
@@ -119,6 +116,17 @@ Unix timestamp: {unix_timestamp}.
 
 Act as a careful orchestrator to ensure each worker is called appropriately, gather all partial results, then formulate a single final response that directly answers the user's request.
 """
+
+def build_system_prompt() -> str:
+    current_time = datetime.utcnow().isoformat()
+    unix_timestamp = time.time()
+    return SYST_PROMPT_TEMPLATE.format(
+        members=members,
+        members_specs=members_specs,
+        options=options,
+        current_time=current_time,
+        unix_timestamp=unix_timestamp
+    )
 
 
 # • If the user wants to send or forward a regular message in Discord, use 'discord_llm'.
