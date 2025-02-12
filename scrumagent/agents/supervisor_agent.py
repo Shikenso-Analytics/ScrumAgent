@@ -131,6 +131,13 @@ def build_system_prompt() -> str:
         current_time=current_time,
         unix_timestamp=unix_timestamp
     )
+    
+def prepare_messages(state: State) -> list:
+    """
+    Prepare the list of messages with a system prompt and appended state messages.
+    """
+    prompt = build_system_prompt()
+    return [SystemMessage(content=prompt)] + state["messages"]
 
 
 # • If the user wants to send or forward a regular message in Discord, use 'discord_llm'.
@@ -147,8 +154,8 @@ def supervisor_node(state: State) -> Command[Literal[*members, END]]:
     """
     Process state messages with a system prompt to coordinate workers, and return the structured command.
     """
-    prompt = build_system_prompt()
-    messages = [SystemMessage(content=prompt)] + state["messages"]
+    messages = prepare_messages(state)
+    logging.debug(f"Prepared {len(messages)} messages for supervisor.")
     try:
         response = llm.with_structured_output(Router).invoke(messages)
     except Exception as e:

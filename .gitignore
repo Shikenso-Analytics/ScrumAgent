@@ -323,3 +323,4 @@ chroma_db
 .env.personal
 Jenkinsfile
 config/taiga_discord_maps.yaml
+.aider*

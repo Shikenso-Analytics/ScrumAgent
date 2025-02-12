@@ -17,7 +17,7 @@ from scrumagent.agents.supervisor_agent import supervisor_node
 from scrumagent.agents.taiga_agent import taiga_agent
 from scrumagent.agents.web_agent import research_agent
 from scrumagent.tools.timeframe_parser_tool import interpret_timeframe_tool, current_timestamp_tool
-
+from scrumagent.agents.aider_agent import aider_node
 
 def human_input_node(state: State) -> Command[Literal["supervisor"]]:
     # It doesn't work like expected. It doesn't wait for the user input.
@@ -152,6 +152,7 @@ def build_graph():
     builder.add_node("deepseek", llm_node)
     builder.add_node("human_input", human_input_node)
     builder.add_node("taiga", taiga_node)
+    builder.add_node("aider", aider_node)
     # builder.add_node("time_parser", time_parser_node)
 
     # checkpointer = MemorySaver()
