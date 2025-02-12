@@ -10,7 +10,7 @@ from typing_extensions import TypedDict
 
 from .agent_state import State
 
-members = ["discord", "human_input", "taiga", "web_browser", "deepseek"
+members = ["discord", "human_input", "taiga", "web_browser", "deepseek", "aider"
            # "time_parser",
            ]
 options = members + ["FINISH"]
@@ -54,6 +54,11 @@ members_infos = {
         "The 'web_browser' worker can use the DuckDuckGo search engine to search the web for important information, "
         "ArXiv for research papers, YouTube, and Wikipedia. It may also navigate to webpages."
     ),
+    "aider": (
+        "The 'aider' worker is a coding assistant that takes user instructions "
+        "and provides AI-generated code suggestions or refactoring ideas. "
+        "It does not directly modify files."
+    ),
     # "time_parser": (
     #     "The 'time_parser' worker can interpret timeframe strings in any language, such as "
     #     "'today', 'yesterday', 'this morning', '2 weeks ago', or 'last Monday', "
@@ -82,6 +87,7 @@ Instructions:
   • If the user references tasks in Taiga (issues, sprints, statuses, user stories), use 'taiga'.
   • If the user wants to search or retrieve messages from Discord, use 'discord'.
   • If the user needs a web or research query, use 'web_browser'.
+  • If the user needs help with coding or code suggestions, use 'aider'.
   • If you can answer the user's request directly (e.g., a general question like "tell me a joke"),
     then do so yourself by setting "next": "FINISH" and placing your final answer in "messages".
   • Always combine the results from any involved workers before giving your final response.
