@@ -117,9 +117,13 @@ Unix timestamp: {unix_timestamp}.
 Act as a careful orchestrator to ensure each worker is called appropriately, gather all partial results, then formulate a single final response that directly answers the user's request.
 """
 
-def build_system_prompt() -> str:
+def get_time_info():
     current_time = datetime.utcnow().isoformat()
     unix_timestamp = time.time()
+    return current_time, unix_timestamp
+
+def build_system_prompt() -> str:
+    current_time, unix_timestamp = get_time_info()
     return SYST_PROMPT_TEMPLATE.format(
         members=members,
         members_specs=members_specs,
@@ -140,16 +144,15 @@ class Router(TypedDict):
 llm = ChatOpenAI(model_name="gpt-4o")
 
 def supervisor_node(state: State) -> Command[Literal[*members, END]]:
-    messages = [SystemMessage(content=build_system_prompt())] + state["messages"]
-
+    """
+    Process state messages with a system prompt to coordinate workers, and return the structured command.
+    """
+    prompt = build_system_prompt()
+    messages = [SystemMessage(content=prompt)] + state["messages"]
     response = llm.with_structured_output(Router).invoke(messages)
     logging.info(f"Supervisor response: {response}")
 
-    goto = response["next"]
+    goto = END if response["next"] == "FINISH" else response["next"]
 
-    if goto == "FINISH":
-        goto = END
-
-    return Command(goto=goto, update={"next": goto, "messages": [
-        AIMessage(content=response["messages"], name="supervisor")
-    ]})
+    ai_message = AIMessage(content=response["messages"], name="supervisor")
+    return Command(goto=goto, update={"next": goto, "messages": [ai_message]})
