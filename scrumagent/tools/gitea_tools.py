@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List
 
-import requests
+import httpx
 from dotenv import load_dotenv
 from langchain.chains import LLMChain
 from langchain.chat_models import ChatOpenAI
@@ -13,7 +13,6 @@ load_dotenv()
 
 GITEA_BASE_URL = os.environ.get("GITEA_BASE_URL")
 GITEA_API_TOKEN = os.environ.get("GITEA_API_TOKEN")
-DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
 
 
 def get_headers() -> Dict[str, str]:
@@ -32,7 +31,7 @@ def get_user_repos() -> Dict:
     Get the authenticated user's repositories.
     """
     url = f"{GITEA_BASE_URL}/api/v1/user/repos"
-    response = requests.get(url, headers=get_headers())
+    response = httpx.get(url, headers=get_headers())
     response.raise_for_status()
     return response.json()
 
@@ -43,7 +42,7 @@ def get_branches(owner: str, repo: str) -> List[str]:
 
     """
     url = f"{GITEA_BASE_URL}/api/v1/repos/{owner}/{repo}/branches"
-    response = requests.get(url, headers=get_headers())
+    response = httpx.get(url, headers=get_headers())
     response.raise_for_status()
     branches = response.json()
     return [b['name'] for b in branches]
@@ -73,7 +72,7 @@ def get_commits(owner: str, repo: str, since: datetime, branch: str = None) -> L
         }
         if branch:
             params["sha"] = branch
-        response = requests.get(commits_url, headers=get_headers(), params=params)
+        response = httpx.get(commits_url, headers=get_headers(), params=params)
         response.raise_for_status()
         commits = response.json()
 
@@ -224,4 +223,3 @@ def summarize_overall_changes_non_technical(summaries: Dict[str, str]) -> str:
     llm = ChatOpenAI(temperature=0, model_name="gpt-4o-mini")
     chain = LLMChain(llm=llm, prompt=prompt)
     return chain.run(repo_summaries=repo_summaries_text)
-
