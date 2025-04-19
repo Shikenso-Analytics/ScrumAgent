@@ -1,4 +1,4 @@
- discord_log_channels:
+discord_log_channels:
  # Channels to log all error messages
   - 123456789012345678
   - 987654321098765432
@@ -24,6 +24,7 @@ other_discord_channel_to_taiga_slag_map:
 
 taiga_discord_user_map:
   #TODO: Change Taiga UserID with name
+  #Format: Taiga UserID: Discord UserID
   1: "user1"
   2: "user2"
   3: "user3"
