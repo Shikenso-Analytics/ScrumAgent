@@ -123,7 +123,7 @@ Scrum Agent offers a range of capabilities to support agile project management:
 1. **Create and activate a Conda environment:**
 
    ```bash
-   conda create -n scrumagent python=3.11 -y
+   conda create -n scrumagent python=3.12 -y
    conda activate scrumagent
    ```
 
@@ -210,7 +210,9 @@ Scrum Agent offers a range of capabilities to support agile project management:
 
 3. **Specific Settings:**
     - `MAX_MSG_MODE`: 'trim' (only keep the last `MAX_MSG_COUNT` messages) or 'summary' (when the message count exceeds `MAX_MSG_COUNT`, summarize the messages and keep the summary as context).
-
+    - `MAX_MSG_COUNT`: The maximum number of messages to keep in the context.
+    - `ACTIVATE_DEEPSEEK`: Set to `True` to enable DeepSeek reasoning. (Requires Ollama installation).
+    - `DISCORD_THREAD_TYPE`: Set to `public` or `private` to specify the type of thread to create in Discord for user stories.
 ---
 
 ## 4. Usage Examples
