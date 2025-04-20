@@ -239,6 +239,23 @@ Below are examples showing **how to create and update Taiga issues or user stori
 **Left:** Creating or updating an issue in Discord  
 **Right:** The newly created or updated issue in Taiga
 
+### Stand‑up Scheduling via Tags
+
+| Tag on the Taiga user story | Bot behaviour | Where to add it                                                              |
+|-----------------------------|---------------|------------------------------------------------------------------------------|
+| `daily stand‑up`            | Stand‑up **every day** (incl. weekends) | <img src="assets/daily_stand-up.png" alt="Tag field in Taiga" height="30"/>  |
+| `weekly stand‑up`           | Stand‑up **Mondays only**              | <img src="assets/weekly_stand-up.png" alt="Tag field in Taiga" height="30"/> |
+| _no tag_                    | Stand‑up **Monday–Friday** (default)   | —                                                                            |
+
+**How to use**
+
+1. Open the user story in **Taiga**.  
+2. In the **Tags** field add either `daily stand‑up` or `weekly stand‑up`.  
+3. If neither tag is set, the bot automatically posts on weekdays.
+
+_No extra configuration needed – this logic is built into the bot._
+
+
 ### Try It Out!
 
 Join our [Discord Server](https://discord.gg/ADV99kyfjg) to test the Scrum Agent and explore its features.

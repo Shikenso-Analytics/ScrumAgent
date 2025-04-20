@@ -3,10 +3,12 @@ import datetime
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 import discord
 import httpx
 import pytz
+import taiga
 import yaml
 from discord import ChannelType
 from discord.ext import commands, tasks
@@ -14,6 +16,7 @@ from dotenv import load_dotenv
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.messages import HumanMessage
 from langchain_taiga.tools.taiga_tools import get_entity_by_ref_tool, get_project
+from taiga.models import UserStory
 
 from config import scrum_promts
 from scrumagent import util_logging
@@ -385,16 +388,70 @@ async def output_total_open_ai_cost():
         summed_up_open_ai_cost["undefined"] = 0
 """
 
+BERLIN_TZ = pytz.timezone("Europe/Berlin")
+
+
+def extract_tags(us: Any) -> set[str]:
+    """
+    Return all tag names of a Taiga user‑story in lower case.
+
+    The function accepts either:
+      • a JSON dict returned by `get_entity_by_ref_tool`, where the key
+        "tags" is a list of ["tag‑name", "color"] pairs, or
+      • a `taiga.models.UserStory` instance whose `.tags` attribute
+        is already a list of strings.
+
+    Parameters
+    ----------
+    us : dict | taiga.models.UserStory
+        The user‑story object or its JSON representation.
+
+    Returns
+    -------
+    set[str]
+        A set containing all tag names in lowercase.
+    """
+    if isinstance(us, dict):  # JSON from the tool
+        return {t[0].lower() for t in us.get("tags", []) if t}
+    if isinstance(us, UserStory):
+        return {t[0].lower() for t in us.tags if t}
+    # Python client object
+    return {t.lower() for t in us.tags}
+
+
+def standup_due_today(us: Any) -> bool:
+    """
+    Determine whether a stand‑up message should be sent today for the
+    given user‑story, based on its tags.
+
+    Tag rules
+    ---------
+    • "daily stand-up"   – every day, including weekends
+    • "weekly stand-up"  – Mondays only
+    • no tag             – Monday to Friday (default)
+
+    Parameters
+    ----------
+    us : dict | taiga.models.UserStory
+        The user‑story object or its JSON representation.
+
+    Returns
+    -------
+    bool
+        True  -> send stand‑up today
+        False -> skip for today
+    """
+    tags = extract_tags(us)
+    today_idx = datetime.datetime.now(BERLIN_TZ).weekday()  # 0 = Monday
+    if "daily stand-up" in tags: return True
+    if "weekly stand-up" in tags: return today_idx == 0
+    return today_idx < 5
+
 
 @tasks.loop(time=datetime.time(hour=8, minute=0, tzinfo=pytz.timezone('Europe/Berlin')))
 @util_logging.exception(__name__)
 async def scrum_master_task():
     print(f"Scrum master task started at {datetime.datetime.now()}")
-    # Only run on weekdays
-    if datetime.datetime.today().weekday() > 4:
-        print("Scrum master task skipped. Weekend :)")
-        return
-
     for project_slug in TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP.keys():
         await manage_user_story_threads(project_slug)
 
@@ -404,7 +461,13 @@ async def scrum_master_task():
             taiga_ref, taiga_name = thread.name.split(" ", 1)
             taiga_ref = taiga_ref.replace("#", "")
             userstory = project.get_userstory_by_ref(taiga_ref)
-            if userstory.is_closed or userstory.status_extra_info.get("is_closed", False) or userstory.milestone is None:
+            if (userstory.is_closed or
+                    userstory.status_extra_info.get("is_closed", False) or (
+                            userstory.milestone is None and project.is_backlog_activated)):
+                continue
+
+            if not standup_due_today(userstory):
+                print(f"Skip stand‑up for {thread.name} (tags rule)")
                 continue
 
             print(f"Running Scrummaster for {thread.name}")
@@ -443,11 +506,10 @@ async def on_ready():
     for assistant in data_collector_list:
         await assistant.on_startup()
 
-
     # Runs with start later
     # Get all user_stories of active sprints
-    # project_slug in TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP.keys():
-    #    await manage_user_story_threads(project_slug)
+    for project_slug in TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP.keys():
+        await manage_user_story_threads(project_slug)
 
     await bot.tree.sync()
 
