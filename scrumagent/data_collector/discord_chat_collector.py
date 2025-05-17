@@ -21,20 +21,34 @@ listener = util_logging.start_listener()
 
 
 class DiscordChatCollector(BaseCollector):
+    """Collect Discord messages, files and links into a Chroma database."""
+
     DB_IDENTIFIER = "discord_chat"
     # Filter out new_member and chat_input_command messages. Add more if needed
     FILTERED_MSG_TYPES = [discord.MessageType.new_member, discord.MessageType.chat_input_command]
 
     def __init__(self, bot: discord.Client, chroma_db: Chroma, filter_channels: [str] = None):
+        """Create the collector.
+
+        Args:
+            bot (discord.Client): Discord client instance.
+            chroma_db (Chroma): Database handle.
+            filter_channels (list[str] | None): Optional list of channel names to limit collection.
+        """
+
         super().__init__(bot, chroma_db)
         self.filter_channels = filter_channels
 
     @util_logging.exception(__name__)
     async def on_startup(self):
-        await self.check_all_unread_massages()
+        """Collect unread messages when the bot starts."""
+
+        await self.check_all_unread_messages()
 
     @util_logging.exception(__name__)
-    async def check_all_unread_massages(self):
+    async def check_all_unread_messages(self):
+        """Iterate over all channels and collect new messages."""
+
         for guild in self.bot.guilds:
             channel_que = [guild.channels, guild.threads]
             for channel in itertools.chain(*channel_que):
@@ -53,6 +67,7 @@ class DiscordChatCollector(BaseCollector):
 
     @util_logging.exception(__name__)
     def get_last_msg_timestamps_in_db(self, guild, channel) -> float:
+        """Return the timestamp of the newest stored message."""
         chats = self.db.get(
             where={"$and": [{"guild_id": guild.id}, {"channel_id": channel.id}, {"source": self.DB_IDENTIFIER}]})
 
@@ -64,6 +79,7 @@ class DiscordChatCollector(BaseCollector):
 
     @util_logging.exception(__name__)
     def add_discord_messages_to_db(self, guild, channel, messages: [discord.Message]):
+        """Add Discord messages to the database."""
         ids, texts, metadatas = [], [], []
 
         for msg in messages:
@@ -88,6 +104,7 @@ class DiscordChatCollector(BaseCollector):
 
     @util_logging.exception(__name__)
     def get_files_from_messages(self, guild, channel, messages: [discord.Message]):
+        """Store attachments of ``messages`` in the database."""
         ids, texts, metadatas = [], [], []
         for msg in messages:
             if msg.attachments and msg.type not in self.FILTERED_MSG_TYPES:
@@ -127,6 +144,7 @@ class DiscordChatCollector(BaseCollector):
 
     @util_logging.exception(__name__)
     def get_links_from_messages(self, guild, channel, messages: [discord.Message]):
+        """Extract and store URLs from ``messages``."""
         ids, texts, metadatas = [], [], []
         for msg in messages:
             if len(msg.content) > 0 and msg.type not in self.FILTERED_MSG_TYPES:
@@ -154,13 +172,15 @@ class DiscordChatCollector(BaseCollector):
 
     @util_logging.exception(__name__)
     def get_surrounding_docs(self, doc_metadata, num_before=3, num_after=3) -> Tuple[List, List]:
-        """
-        Returns the surrounding messages of a given message.
+        """Return messages surrounding a given document.
 
-        :param doc_metadata: The metadata of the message to get surrounding messages for
-        :param num_before: Number of messages before the given message
-        :param num_after: Number of messages after the given message
-        :return: Tuple of lists of messages before and after the given message
+        Args:
+            doc_metadata: Metadata of the reference message.
+            num_before (int, optional): How many previous messages to fetch.
+            num_after (int, optional): How many following messages to fetch.
+
+        Returns:
+            Tuple[List, List]: Messages before and after the reference message.
         """
         max_search_window = int(datetime.timedelta(weeks=1).total_seconds())
 
