@@ -24,6 +24,8 @@ load_dotenv()
 ACTIVATE_DEEPSEEK = os.getenv("ACTIVATE_DEEPSEEK", "").lower() in ("true", "1", "yes", "on")
 
 def human_input_node(state: State) -> Command[Literal["supervisor"]]:
+    """Wait for user input and return to the supervisor node."""
+
     # It doesn't work like expected. It doesn't wait for the user input.
     # But it continues with the next invoke, so its fine I guess.
     human_message = interrupt("human_input")
@@ -50,6 +52,8 @@ def human_input_node(state: State) -> Command[Literal["supervisor"]]:
 #     )
 
 def web_node(state: State) -> Command[Literal["supervisor"]]:
+    """Invoke the research agent and pass the result back to the supervisor."""
+
     result = research_agent.invoke(state)
     print(f"Web Agent response: {result['messages'][-1].content}")
     return Command(
@@ -63,6 +67,8 @@ def web_node(state: State) -> Command[Literal["supervisor"]]:
 
 
 def llm_node(state: State) -> Command[Literal["supervisor"]]:
+    """Invoke the DeepSeek LLM agent and return its response."""
+
     result = llm_agent.invoke(state)
     print(f"Deepseek response: {result['messages'][-1].content}")
     return Command(
@@ -76,6 +82,8 @@ def llm_node(state: State) -> Command[Literal["supervisor"]]:
 
 
 def discord_search_node(state: State) -> Command[Literal["supervisor"]]:
+    """Invoke the Discord search agent and return its response."""
+
     result = discord_search_agent.invoke(state)
     print(f"Discord Agent response: {result['messages'][-1].content}")
     return Command(
@@ -89,6 +97,8 @@ def discord_search_node(state: State) -> Command[Literal["supervisor"]]:
 
 
 def taiga_node(state: State) -> Command[Literal["supervisor"]]:
+    """Invoke the Taiga agent and forward its response."""
+
     print("Taiga Agent invoked state: " + state["messages"][-1].content)
     result = taiga_agent.invoke(state)
     print(f"Taiga Agent response: {result['messages'][-1].content}")
@@ -103,9 +113,7 @@ def taiga_node(state: State) -> Command[Literal["supervisor"]]:
 
 
 def time_parser_node(state: State) -> Command[Literal["supervisor"]]:
-    """
-    Node that invokes the interpret_timeframe_tool on the user's last message.
-    """
+    """Parse natural language timeframes in the user's last message."""
     # 1) Extract the user query (raw_timeframe) from 'state'
     #    For example, if the last message from the user was "parse '2 weeks ago'".
     user_message = state["messages"][-1].content
@@ -125,9 +133,7 @@ def time_parser_node(state: State) -> Command[Literal["supervisor"]]:
 
 
 def current_timestamp_node(state: State) -> Command[Literal["supervisor"]]:
-    """
-    Node that invokes the current_timestamp_tool to get the current timestamp.
-    """
+    """Return the current timestamp via the helper tool."""
 
     # 1) Call the current timestamp tool
     timestamp_str = current_timestamp_tool()
@@ -144,6 +150,7 @@ def current_timestamp_node(state: State) -> Command[Literal["supervisor"]]:
 
 
 def build_graph():
+    """Compile and return the multi‑agent LangGraph."""
     # https://langchain-ai.github.io/langgraph/concepts/persistence/#using-in-langgraph
     # TODO!: Add the in-memory store to the graph + search for the in-memory store.
 
