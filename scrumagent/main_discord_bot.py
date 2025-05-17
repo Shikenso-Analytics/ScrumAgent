@@ -86,6 +86,7 @@ data_collector_list = [discord_chat_collector]
 
 @util_logging.exception(__name__)
 def run_agent_in_cb_context(messages: list, config: dict, cost_position=None) -> dict:
+    """Run the agent graph and track token costs."""
     with get_openai_callback() as cb:
         result = multi_agent_graph.invoke(
             {"messages": messages},
@@ -105,6 +106,7 @@ def run_agent_in_cb_context(messages: list, config: dict, cost_position=None) ->
 @bot.event
 @util_logging.exception(__name__)
 async def on_message(message: discord.Message):
+    """Handle incoming Discord messages."""
     if message.author == bot.user:
         return
 
@@ -215,6 +217,7 @@ async def on_message(message: discord.Message):
 
 @util_logging.exception(__name__)
 async def manage_user_story_threads(project_slug: str):
+    """Ensure that each Taiga user story has a corresponding Discord thread."""
     print("Manage user story threads started.")
 
     project = get_project(project_slug)
@@ -340,8 +343,9 @@ async def manage_user_story_threads(project_slug: str):
 @bot.event
 @util_logging.exception(__name__)
 async def on_guild_join():
+    """Called when the bot joins a guild."""
     print(f"Guild join: {bot.user} (ID: {bot.user.id})")
-    await discord_chat_collector.check_all_unread_massages()
+    await discord_chat_collector.check_all_unread_messages()
 
 
 @bot.event
@@ -363,6 +367,7 @@ async def on_guild_update():
 @tasks.loop(hours=1)
 @util_logging.exception(__name__)
 async def update_taiga_threads():
+    """Periodic task that syncs Taiga user stories with Discord threads."""
     print("Updating taiga threads started.")
     for project_slug in TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP.keys():
         await manage_user_story_threads(project_slug)
@@ -371,6 +376,7 @@ async def update_taiga_threads():
 @tasks.loop(hours=24)
 @util_logging.exception(__name__)
 async def daily_datacollector_task():
+    """Run daily housekeeping routines for data collection."""
     print("Daily data collector started.")
     # await blog_txt_collector.check_all_files_in_folder()
     pass
@@ -392,24 +398,13 @@ BERLIN_TZ = pytz.timezone("Europe/Berlin")
 
 
 def extract_tags(us: Any) -> set[str]:
-    """
-    Return all tag names of a Taiga user‑story in lower case.
+    """Return all tag names of a Taiga user story in lowercase.
 
-    The function accepts either:
-      • a JSON dict returned by `get_entity_by_ref_tool`, where the key
-        "tags" is a list of ["tag‑name", "color"] pairs, or
-      • a `taiga.models.UserStory` instance whose `.tags` attribute
-        is already a list of strings.
+    Args:
+        us (dict | taiga.models.UserStory): The user story object or its JSON representation.
 
-    Parameters
-    ----------
-    us : dict | taiga.models.UserStory
-        The user‑story object or its JSON representation.
-
-    Returns
-    -------
-    set[str]
-        A set containing all tag names in lowercase.
+    Returns:
+        set[str]: All tags associated with the user story.
     """
     if isinstance(us, dict):  # JSON from the tool
         return {t[0].lower() for t in us.get("tags", []) if t}
@@ -420,26 +415,24 @@ def extract_tags(us: Any) -> set[str]:
 
 
 def standup_due_today(us: Any) -> bool:
-    """
-    Determine whether a stand‑up message should be sent today for the
-    given user‑story, based on its tags.
+    """Return ``True`` if a stand‑up should be sent today.
 
-    Tag rules
-    ---------
-    • "daily stand-up"   – every day, including weekends
-    • "weekly stand-up"  – Mondays only
-    • no tag             – Monday to Friday (default)
+    The decision is based on the tags attached to the Taiga user
+    story:
 
-    Parameters
-    ----------
-    us : dict | taiga.models.UserStory
-        The user‑story object or its JSON representation.
+    - ``"daily stand-up"``    – a message is posted every day, including
+      weekends.
+    - ``"weekly stand-up"``   – only post on Mondays.
+    - no tag                  – default behaviour; post Monday through
+      Friday.
 
-    Returns
-    -------
-    bool
-        True  -> send stand‑up today
-        False -> skip for today
+    Args:
+        us (dict | taiga.models.UserStory): The user story object or its
+            JSON representation.
+
+    Returns:
+        bool: ``True`` if a stand‑up should be posted today, otherwise
+        ``False``.
     """
     tags = extract_tags(us)
     today_idx = datetime.datetime.now(BERLIN_TZ).weekday()  # 0 = Monday
@@ -451,6 +444,7 @@ def standup_due_today(us: Any) -> bool:
 @tasks.loop(time=datetime.time(hour=8, minute=0, tzinfo=pytz.timezone('Europe/Berlin')))
 @util_logging.exception(__name__)
 async def scrum_master_task():
+    """Daily task that posts stand-up messages."""
     print(f"Scrum master task started at {datetime.datetime.now()}")
     for project_slug in TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP.keys():
         await manage_user_story_threads(project_slug)
@@ -497,6 +491,7 @@ async def scrum_master_task():
 @bot.event
 @util_logging.exception(__name__)
 async def on_ready():
+    """Called when the Discord bot is fully ready."""
     channel_list = [bot.get_channel(x) for x in DISCORD_LOG_CHANNEL]
     util_logging.override_defaults(override=channel_list)
     discord_log_worker.start()
@@ -522,6 +517,7 @@ async def on_ready():
 
 @tasks.loop(seconds=10)
 async def discord_log_worker():
+    """Forward log records from the queue to Discord."""
     try:
         subject, rec, discord_channels = util_logging.discord_log_queue.get_nowait()
     except util_logging.queue.Empty:

@@ -11,18 +11,34 @@ mod_path = Path(__file__).parent
 
 
 def get_image_description_via_llama(image_path: str) -> str:
+    """Return a short description of the image at ``image_path``.
+
+    The function sends the image to an Ollama model and returns the
+    generated description.
+
+    Args:
+        image_path (str): Path to the image file.
+
+    Returns:
+        str: The text description produced by the model.
+    """
+
     response = ollama.chat(
-        model='llama3.2-vision',
-        messages=[{
-            'role': 'user',
-            'content': 'What is in this image?',
-            'images': [image_path]
-        }]
+        model="llama3.2-vision",
+        messages=[
+            {
+                "role": "user",
+                "content": "What is in this image?",
+                "images": [image_path],
+            }
+        ],
     )
-    return response['message']['content']
+    return response["message"]["content"]
 
 
 def init_discord_chroma_db():
+    """Initialise and return the Chroma database for Discord logs."""
+
     # embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
     CHROMA_PATH = str(mod_path / os.getenv("CHROMA_DB_PATH"))
     CHROMA_DB_DISCORD_CHAT_DATA_NAME = os.getenv("CHROMA_DB_DISCORD_CHAT_DATA_NAME")
@@ -42,14 +58,18 @@ def init_discord_chroma_db():
 
 
 def split_text_smart(text, max_length=2000):
-    """
-    Splits a given text into sections of up to max_length characters,
-    preserving paragraph and list item boundaries when possible.
-    (Generated with ChatGPT...)
+    """Split ``text`` into chunks of at most ``max_length`` characters.
 
-    :param text: The input text to be split.
-    :param max_length: The maximum allowed length per section.
-    :return: A list of text sections.
+    The function tries to keep paragraphs and list items intact when
+    splitting the text.
+
+    Args:
+        text (str): The input string.
+        max_length (int, optional): Maximum length of each chunk. Defaults to
+            ``2000``.
+
+    Returns:
+        list[str]: The resulting list of text segments.
     """
     if len(text) <= max_length:
         return [text]
