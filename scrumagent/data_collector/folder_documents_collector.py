@@ -17,8 +17,10 @@ class DirectoryCollector(BaseCollector):
         self.folder_path = str(folder_path)
 
         # Used by DirectoryLoader ...
-        nltk.download('punkt_tab', quiet=True)
-        nltk.download('averaged_perceptron_tagger_eng', quiet=True)
+        # The NLTK dataset names were incorrect which caused runtime
+        # download errors. Use the proper identifiers instead.
+        nltk.download('punkt', quiet=True)
+        nltk.download('averaged_perceptron_tagger', quiet=True)
 
         super().__init__(bot, chroma_db)
 
