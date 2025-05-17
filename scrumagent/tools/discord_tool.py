@@ -11,8 +11,15 @@ from scrumagent.tools.timeframe_parser_tool import interpret_timeframe_tool
 
 load_dotenv()
 
-# Initialize the data collector database
-chroma_db_inst = init_discord_chroma_db()
+_chroma_db_inst = None
+
+
+def get_chroma_db():
+    """Return a lazily initialized Chroma DB instance."""
+    global _chroma_db_inst
+    if _chroma_db_inst is None:
+        _chroma_db_inst = init_discord_chroma_db()
+    return _chroma_db_inst
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
@@ -38,11 +45,11 @@ def discord_search_tool(query: str, max_results: int = 5) -> str:
     Returns:
         str: A formatted summary of the matched messages or a notice if no relevant results were found.
     """
-    results = chroma_db_inst.similarity_search(query, k=max_results)
+    chroma_db = get_chroma_db()
+    results = chroma_db.similarity_search(query, k=max_results)
     str_format = ""
     for result in results:
         content = result.page_content.replace("\n", " ")
-        print(result)
         timestamp_format = datetime.fromtimestamp(result.metadata['timestamp'])
 
         str_format += (
@@ -92,10 +99,8 @@ def discord_channel_msgs_tool(channel_name: str = None, timeframe: str = None) -
     if after:
         where_filter.append({"timestamp": {"$gte": after}})  # greater than or equal
 
-    print(where_filter)
-
-    results_dict = chroma_db_inst.get(where={"$and": where_filter})
-    print("!!!" + str(results_dict))
+    chroma_db = get_chroma_db()
+    results_dict = chroma_db.get(where={"$and": where_filter})
     str_format = ""
     # json_results = []
     for content, metadata in zip(results_dict["documents"], results_dict["metadatas"]):
