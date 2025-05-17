@@ -28,7 +28,7 @@ class DiscordChannelLogger(logging.Handler):
     This class provides an abstraction for logging to a Discord channel.
     """
 
-    def __init__(self, record_queue: queue.Queue):
+    def __init__(self, record_queue: queue.Queue) -> None:
         logging.Handler.__init__(self)
         self.subject = "Discord SCRUM Agent Error"
         self._record_queue = record_queue

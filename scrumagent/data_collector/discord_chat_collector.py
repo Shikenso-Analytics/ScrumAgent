@@ -2,7 +2,7 @@ import datetime
 import itertools
 import os
 import re
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 import discord
 from discord import Thread
@@ -27,26 +27,26 @@ class DiscordChatCollector(BaseCollector):
     # Filter out new_member and chat_input_command messages. Add more if needed
     FILTERED_MSG_TYPES = [discord.MessageType.new_member, discord.MessageType.chat_input_command]
 
-    def __init__(self, bot: discord.Client, chroma_db: Chroma, filter_channels: [str] = None):
+    def __init__(self, bot: discord.Client, chroma_db: Chroma, filter_channels: Optional[List[str]] = None) -> None:
         """Create the collector.
 
         Args:
             bot (discord.Client): Discord client instance.
             chroma_db (Chroma): Database handle.
-            filter_channels (list[str] | None): Optional list of channel names to limit collection.
+            filter_channels (Optional[List[str]]): Optional list of channel names to limit collection.
         """
 
         super().__init__(bot, chroma_db)
         self.filter_channels = filter_channels
 
     @util_logging.exception(__name__)
-    async def on_startup(self):
+    async def on_startup(self) -> None:
         """Collect unread messages when the bot starts."""
 
         await self.check_all_unread_messages()
 
     @util_logging.exception(__name__)
-    async def check_all_unread_messages(self):
+    async def check_all_unread_messages(self) -> None:
         """Iterate over all channels and collect new messages."""
 
         for guild in self.bot.guilds:
@@ -66,7 +66,7 @@ class DiscordChatCollector(BaseCollector):
                         print(f"  - No access to channel: {channel.name}")
 
     @util_logging.exception(__name__)
-    def get_last_msg_timestamps_in_db(self, guild, channel) -> float:
+    def get_last_msg_timestamps_in_db(self, guild, channel) -> Optional[float]:
         """Return the timestamp of the newest stored message."""
         chats = self.db.get(
             where={"$and": [{"guild_id": guild.id}, {"channel_id": channel.id}, {"source": self.DB_IDENTIFIER}]})
@@ -78,7 +78,12 @@ class DiscordChatCollector(BaseCollector):
         return last_timetamp
 
     @util_logging.exception(__name__)
-    def add_discord_messages_to_db(self, guild, channel, messages: [discord.Message]):
+    def add_discord_messages_to_db(
+        self,
+        guild,
+        channel,
+        messages: List[discord.Message],
+    ) -> Optional[List[str]]:
         """Add Discord messages to the database."""
         ids, texts, metadatas = [], [], []
 
@@ -103,7 +108,12 @@ class DiscordChatCollector(BaseCollector):
             return self.add_to_db_batch(ids=ids, texts=texts, metadatas=metadatas)
 
     @util_logging.exception(__name__)
-    def get_files_from_messages(self, guild, channel, messages: [discord.Message]):
+    def get_files_from_messages(
+        self,
+        guild,
+        channel,
+        messages: List[discord.Message],
+    ) -> Optional[List[str]]:
         """Store attachments of ``messages`` in the database."""
         ids, texts, metadatas = [], [], []
         for msg in messages:
@@ -143,7 +153,12 @@ class DiscordChatCollector(BaseCollector):
             return self.add_to_db_batch(ids=ids, texts=texts, metadatas=metadatas)
 
     @util_logging.exception(__name__)
-    def get_links_from_messages(self, guild, channel, messages: [discord.Message]):
+    def get_links_from_messages(
+        self,
+        guild,
+        channel,
+        messages: List[discord.Message],
+    ) -> Optional[List[str]]:
         """Extract and store URLs from ``messages``."""
         ids, texts, metadatas = [], [], []
         for msg in messages:
@@ -171,7 +186,7 @@ class DiscordChatCollector(BaseCollector):
             return self.add_to_db_batch(ids=ids, texts=texts, metadatas=metadatas)
 
     @util_logging.exception(__name__)
-    def get_surrounding_docs(self, doc_metadata, num_before=3, num_after=3) -> Tuple[List, List]:
+    def get_surrounding_docs(self, doc_metadata, num_before: int = 3, num_after: int = 3) -> Tuple[List, List]:
         """Return messages surrounding a given document.
 
         Args:

@@ -1,6 +1,7 @@
 import discord
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from typing import List, Dict, Optional, Any
 
 
 class BaseCollector:
@@ -12,7 +13,7 @@ class BaseCollector:
     # TODO: Do this automatic in the base class
     DB_IDENTIFIER = "base"
 
-    def __init__(self, bot: discord.Client, db: Chroma):
+    def __init__(self, bot: discord.Client, db: Chroma) -> None:
         """Create a new collector.
 
         Args:
@@ -23,23 +24,30 @@ class BaseCollector:
         self.bot = bot
         self.db = db
 
-    async def on_startup(self):
+    async def on_startup(self) -> None:
         """Hook that is called once the bot is ready."""
 
         raise NotImplementedError
 
-    def add_to_db(self, _id: str, text: str, metadata: {}) -> [str]:
+    def add_to_db(self, _id: str, text: str, metadata: Dict[str, Any]) -> List[str]:
         """Add a single document to the database."""
 
         return self.add_to_db_batch(ids=[_id], texts=[text], metadatas=[metadata])
 
-    def add_to_db_batch(self, ids: [str], texts: [str], metadatas: [{}]) -> [str]:
+    def add_to_db_batch(
+        self,
+        ids: List[str],
+        texts: List[str],
+        metadatas: List[Dict[str, Any]],
+    ) -> List[str]:
         """Add multiple documents to the database."""
 
         print(f"Adding {len(ids)} docs to the DB")
         return self.db.add_texts(texts=texts, metadatas=metadatas, ids=ids)
 
-    def add_to_db_docs(self, docs: [Document], ids: [str] = None) -> [str]:
+    def add_to_db_docs(
+        self, docs: List[Document], ids: Optional[List[str]] = None
+    ) -> List[str]:
         """Store ``docs`` in the database."""
 
         texts = [doc.page_content for doc in docs]
