@@ -6,6 +6,7 @@ import ollama
 import chromadb
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
+from typing import List
 
 mod_path = Path(__file__).parent
 
@@ -36,7 +37,7 @@ def get_image_description_via_llama(image_path: str) -> str:
     return response["message"]["content"]
 
 
-def init_discord_chroma_db():
+def init_discord_chroma_db() -> Chroma:
     """Initialise and return the Chroma database for Discord logs."""
 
     # embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
@@ -57,7 +58,7 @@ def init_discord_chroma_db():
     return chroma_db_inst
 
 
-def split_text_smart(text, max_length=2000):
+def split_text_smart(text: str, max_length: int = 2000) -> List[str]:
     """Split ``text`` into chunks of at most ``max_length`` characters.
 
     The function tries to keep paragraphs and list items intact when
@@ -69,7 +70,7 @@ def split_text_smart(text, max_length=2000):
             ``2000``.
 
     Returns:
-        list[str]: The resulting list of text segments.
+        List[str]: The resulting list of text segments.
     """
     if len(text) <= max_length:
         return [text]

@@ -11,7 +11,7 @@ repl = PythonREPL()
 @tool
 def python_repl_tool(
         code: Annotated[str, "The python code to execute to generate your chart."],
-):
+) -> str:
     """Use this to execute python code and do math. If you want to see the output of a value,
     you should print it out with `print(...)`. This is visible to the user."""
     print(f"Executing code: {code}")

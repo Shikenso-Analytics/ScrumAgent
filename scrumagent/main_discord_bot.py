@@ -3,7 +3,7 @@ import datetime
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, List, Optional
 
 import discord
 import httpx
@@ -85,7 +85,11 @@ data_collector_list = [discord_chat_collector]
 
 
 @util_logging.exception(__name__)
-def run_agent_in_cb_context(messages: list, config: dict, cost_position=None) -> dict:
+def run_agent_in_cb_context(
+    messages: List[HumanMessage],
+    config: dict,
+    cost_position: Optional[str] = None,
+) -> dict:
     """Run the agent graph and track token costs."""
     with get_openai_callback() as cb:
         result = multi_agent_graph.invoke(
@@ -105,7 +109,7 @@ def run_agent_in_cb_context(messages: list, config: dict, cost_position=None) ->
 
 @bot.event
 @util_logging.exception(__name__)
-async def on_message(message: discord.Message):
+async def on_message(message: discord.Message) -> None:
     """Handle incoming Discord messages."""
     if message.author == bot.user:
         return
@@ -216,7 +220,7 @@ async def on_message(message: discord.Message):
 
 
 @util_logging.exception(__name__)
-async def manage_user_story_threads(project_slug: str):
+async def manage_user_story_threads(project_slug: str) -> None:
     """Ensure that each Taiga user story has a corresponding Discord thread."""
     print("Manage user story threads started.")
 
@@ -231,7 +235,9 @@ async def manage_user_story_threads(project_slug: str):
     for d_thread in taiga_thread_channel.threads:
         thread_name_to_discord_thread[d_thread.name] = d_thread
 
-    async def get_all_archived_threads(channel, private):
+    async def get_all_archived_threads(
+        channel: discord.abc.GuildChannel, private: bool
+    ) -> List[discord.Thread]:
         threads = [archived_thread async for archived_thread in
                    channel.archived_threads(private=private, joined=private, limit=100)]
         return threads
@@ -244,7 +250,7 @@ async def manage_user_story_threads(project_slug: str):
         if d_thread.name not in thread_name_to_discord_thread:
             thread_name_to_discord_thread[d_thread.name] = d_thread
 
-    async def manage_user_story(user_story):
+    async def manage_user_story(user_story: UserStory) -> None:
         thread_name = f"#{user_story.ref} {user_story.subject}"
 
         us_full_infos = get_entity_by_ref_tool({"project_slug": project_slug,
@@ -342,7 +348,7 @@ async def manage_user_story_threads(project_slug: str):
 
 @bot.event
 @util_logging.exception(__name__)
-async def on_guild_join():
+async def on_guild_join() -> None:
     """Called when the bot joins a guild."""
     print(f"Guild join: {bot.user} (ID: {bot.user.id})")
     await discord_chat_collector.check_all_unread_messages()
@@ -350,7 +356,7 @@ async def on_guild_join():
 
 @bot.event
 @util_logging.exception(__name__)
-async def on_guild_remove():
+async def on_guild_remove() -> None:
     # Do nothing for now. Delete every msg from the guild from the DB??
     print(f"Guild remove: {bot.user} (ID: {bot.user.id})")
     pass
@@ -358,7 +364,7 @@ async def on_guild_remove():
 
 @bot.event
 @util_logging.exception(__name__)
-async def on_guild_update():
+async def on_guild_update() -> None:
     # DO nothing for now. Update the guild info in the DB??
     print(f"Guild update: {bot.user} (ID: {bot.user.id})")
     pass
@@ -366,7 +372,7 @@ async def on_guild_update():
 
 @tasks.loop(hours=1)
 @util_logging.exception(__name__)
-async def update_taiga_threads():
+async def update_taiga_threads() -> None:
     """Periodic task that syncs Taiga user stories with Discord threads."""
     print("Updating taiga threads started.")
     for project_slug in TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP.keys():
@@ -375,7 +381,7 @@ async def update_taiga_threads():
 
 @tasks.loop(hours=24)
 @util_logging.exception(__name__)
-async def daily_datacollector_task():
+async def daily_datacollector_task() -> None:
     """Run daily housekeeping routines for data collection."""
     print("Daily data collector started.")
     # await blog_txt_collector.check_all_files_in_folder()
@@ -443,7 +449,7 @@ def standup_due_today(us: Any) -> bool:
 
 @tasks.loop(time=datetime.time(hour=8, minute=0, tzinfo=pytz.timezone('Europe/Berlin')))
 @util_logging.exception(__name__)
-async def scrum_master_task():
+async def scrum_master_task() -> None:
     """Daily task that posts stand-up messages."""
     print(f"Scrum master task started at {datetime.datetime.now()}")
     for project_slug in TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP.keys():
@@ -490,7 +496,7 @@ async def scrum_master_task():
 
 @bot.event
 @util_logging.exception(__name__)
-async def on_ready():
+async def on_ready() -> None:
     """Called when the Discord bot is fully ready."""
     channel_list = [bot.get_channel(x) for x in DISCORD_LOG_CHANNEL]
     util_logging.override_defaults(override=channel_list)
@@ -516,7 +522,7 @@ async def on_ready():
 
 
 @tasks.loop(seconds=10)
-async def discord_log_worker():
+async def discord_log_worker() -> None:
     """Forward log records from the queue to Discord."""
     try:
         subject, rec, discord_channels = util_logging.discord_log_queue.get_nowait()

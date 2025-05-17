@@ -7,6 +7,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from langgraph.graph import MessagesState
 from langgraph.graph import StateGraph, START
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 from langgraph.types import interrupt
 from pymongo import MongoClient
@@ -149,7 +150,7 @@ def current_timestamp_node(state: State) -> Command[Literal["supervisor"]]:
     )
 
 
-def build_graph():
+def build_graph() -> CompiledStateGraph:
     """Compile and return the multi‑agent LangGraph."""
     # https://langchain-ai.github.io/langgraph/concepts/persistence/#using-in-langgraph
     # TODO!: Add the in-memory store to the graph + search for the in-memory store.
