@@ -334,15 +334,25 @@ async def manage_user_story_threads(project_slug: str) -> None:
                     await discord_thread.add_user(discord_user)
                     await asyncio.sleep(0.5)  # Sleep for 0.5 second to avoid rate limiting
 
+    def _status_name(us: UserStory) -> str:
+        """Return the lowercase status name of ``us``."""
+        if isinstance(us.status, dict):
+            return us.status.get("name", "").lower()
+        return getattr(getattr(us, "status", None), "name", "").lower()
+
     if project.is_backlog_activated:
-        sprints = project.list_milestones(closed=False)
+        sprints = [s for s in project.list_milestones(closed=False)
+                   if not getattr(s, "is_closed", False)
+                   and getattr(s, "is_active", True)]
         for sprint in sprints:
             for user_story in sprint.user_stories:
                 if not user_story.is_closed:
                     await manage_user_story(user_story)
     else:
         for us in project.list_user_stories():
-            if not us.is_closed and not us.status_extra_info.get("is_closed"):
+            if (not us.is_closed and
+                    not us.status_extra_info.get("is_closed") and
+                    _status_name(us) in ["ready", "in progress", "ready for test"]):
                 await manage_user_story(us)
 
 
