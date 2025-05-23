@@ -65,7 +65,7 @@ Analyze the initial state of user_story "{taiga_name}" (Ref: {taiga_ref}) in pro
 
 2. **Output Summary** with emoticons for readability and team engagement (Displayed)  
     - **Summary:** Very brief and concise summarize of what the user stor is about and its tasks.
-    - **Suggenstions:** Make concrete suggestions for adding more tasks or concretizing the user story.
+    - **Suggestions:** Make concrete suggestions for adding more tasks or concretizing the user story.
 
 
 **Goal:**  
