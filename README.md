@@ -1,7 +1,6 @@
 # Scrum Agent
 
 ![Shikenso Logo](https://shikenso.com/assets2/img/ShikensoAnalytics_Thumbnail.png)
-
 <div align="center">
   <a href="https://discord.gg/ADV99kyfjg" target="_blank" style="margin: 2px;">
     <img alt="Discord" src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" />
@@ -316,7 +315,6 @@ you can use taiga-docker (https://github.com/taigaio/taiga-docker)
 
 #### 7.2 Taiga io
 2. TAIGA_URL="https://api.taiga.io"
-https://api.taiga.io
 
 ### 7.3 running tests
 -Example usage
