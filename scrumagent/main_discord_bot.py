@@ -343,13 +343,14 @@ async def manage_user_story_threads(project_slug: str) -> None:
                 if not user_story.is_closed:
                     await manage_user_story(user_story)
     else:
+        status_map = {s.id: s.name.lower() for s in project.list_user_story_statuses()}
         for us in project.list_user_stories():
-            status_name = (us.status.get("name", "").lower()
-                           if isinstance(us.status, dict)
-                           else getattr(getattr(us, "status", None), "name", "").lower())
-            if (not us.is_closed and
-                    not us.status_extra_info.get("is_closed") and
-                    status_name in ["ready", "in progress", "ready for test"]):
+            status_id = (us.status.get("id") if isinstance(us.status, dict)
+                         else getattr(us.status, "id", us.status))
+            status_name = status_map.get(status_id, "")
+            if (not us.is_closed
+                    and not us.status_extra_info.get("is_closed")
+                    and status_name in ["ready", "in progress", "ready for test"]):
                 await manage_user_story(us)
 
 
