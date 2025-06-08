@@ -508,7 +508,7 @@ async def on_ready() -> None:
     """Called when the Discord bot is fully ready."""
     channel_list = [bot.get_channel(x) for x in DISCORD_LOG_CHANNEL]
     util_logging.override_defaults(override=channel_list)
-    discord_log_worker.start()
+    # discord_log_worker.start()
 
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
 
