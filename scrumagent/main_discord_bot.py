@@ -455,6 +455,46 @@ def standup_due_today(us: Any) -> bool:
     return today_idx < 5
 
 
+def get_active_user_stories(project: Any) -> List[UserStory]:
+    """Return all active user stories for a Taiga project."""
+    if project.is_backlog_activated:
+        sprints = [m for m in project.list_milestones(closed=False)
+                   if not getattr(m, "is_closed", False)
+                   and getattr(m, "is_active", True)]
+        user_stories = [us for sprint in sprints for us in sprint.user_stories
+                        if not us.is_closed]
+    else:
+        status_map = {status.id: status.name.lower()
+                      for status in project.list_user_story_statuses()}
+        user_stories = []
+        for us in project.list_user_stories():
+            status_id = (us.status.get("id") if isinstance(us.status, dict)
+                         else getattr(us.status, "id", us.status))
+            status_name = status_map.get(status_id, "")
+            if (not us.is_closed
+                    and not us.status_extra_info.get("is_closed")
+                    and status_name in ["ready", "in progress", "ready for test"]):
+                user_stories.append(us)
+    return user_stories
+
+
+async def get_discord_thread_map(channel: discord.abc.GuildChannel) -> dict[str, discord.Thread]:
+    """Return mapping of thread names to Discord thread objects, including archived threads."""
+    thread_map = {t.name: t for t in channel.threads}
+
+    async def collect(private: bool) -> List[discord.Thread]:
+        return [t async for t in channel.archived_threads(private=private,
+                                                          joined=private,
+                                                          limit=100)]
+
+    archived = await collect(True)
+    archived += await collect(False)
+
+    for t in archived:
+        thread_map.setdefault(t.name, t)
+    return thread_map
+
+
 @tasks.loop(time=datetime.time(hour=8, minute=0, tzinfo=pytz.timezone('Europe/Berlin')))
 @util_logging.exception(__name__)
 async def scrum_master_task() -> None:
@@ -465,31 +505,30 @@ async def scrum_master_task() -> None:
 
         taiga_thread_channel = bot.get_channel(TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP[project_slug])
         project = get_project(project_slug)
-        for thread in taiga_thread_channel.threads:
-            taiga_ref, taiga_name = thread.name.split(" ", 1)
-            taiga_ref = taiga_ref.replace("#", "")
-            userstory = project.get_userstory_by_ref(taiga_ref)
-            if (userstory.is_closed or
-                    userstory.status_extra_info.get("is_closed", False) or (
-                            userstory.milestone is None and project.is_backlog_activated)):
+        thread_map = await get_discord_thread_map(taiga_thread_channel)
+
+        for us in get_active_user_stories(project):
+            thread_name = f"#{us.ref} {us.subject}"
+            thread = thread_map.get(thread_name)
+            if not thread:
+                print(f"Discord thread for {thread_name} not found.")
                 continue
 
-            if not standup_due_today(userstory):
-                print(f"Skip stand‑up for {thread.name} (tags rule)")
+            if not standup_due_today(us):
+                print(f"Skip stand‑up for {thread_name} (tags rule)")
                 continue
 
-            print(f"Running Scrummaster for {thread.name}")
+            print(f"Running Scrummaster for {thread_name}")
 
-            scrum_task_promt = scrum_promts.scrum_master_promt.format(taiga_ref=taiga_ref, taiga_name=taiga_name,
+            scrum_task_promt = scrum_promts.scrum_master_promt.format(taiga_ref=us.ref, taiga_name=us.subject,
                                                                       project_slug=project_slug)
             config = {"configurable": {"user_id": thread.name, "thread_id": f"{thread.name} scrum_master"}}
 
             async with thread.typing():
                 loop = asyncio.get_running_loop()
-                # Use run_in_executor to run the blocking invocation in a separate thread.
                 result = await loop.run_in_executor(None,
                                                     lambda: run_agent_in_cb_context([
-                                                        HumanMessage(content=scrum_task_promt)
+                                                        HumanMessage(content=scrum_task_promt),
                                                     ],
                                                         config)
                                                     )
