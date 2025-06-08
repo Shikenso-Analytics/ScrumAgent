@@ -335,15 +335,15 @@ async def manage_user_story_threads(project_slug: str) -> None:
                     await asyncio.sleep(0.5)  # Sleep for 0.5 second to avoid rate limiting
 
     if project.is_backlog_activated:
-        sprints = [s for s in project.list_milestones(closed=False)
-                   if not getattr(s, "is_closed", False)
-                   and getattr(s, "is_active", True)]
+        sprints = [milestone for milestone in project.list_milestones(closed=False)
+                   if not getattr(milestone, "is_closed", False)
+                   and getattr(milestone, "is_active", True)]
         for sprint in sprints:
             for user_story in sprint.user_stories:
                 if not user_story.is_closed:
                     await manage_user_story(user_story)
     else:
-        status_map = {s.id: s.name.lower() for s in project.list_user_story_statuses()}
+        status_map = {status.id: status.name.lower() for status in project.list_user_story_statuses()}
         for us in project.list_user_stories():
             status_id = (us.status.get("id") if isinstance(us.status, dict)
                          else getattr(us.status, "id", us.status))
