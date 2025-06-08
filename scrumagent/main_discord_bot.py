@@ -335,14 +335,22 @@ async def manage_user_story_threads(project_slug: str) -> None:
                     await asyncio.sleep(0.5)  # Sleep for 0.5 second to avoid rate limiting
 
     if project.is_backlog_activated:
-        sprints = project.list_milestones(closed=False)
+        sprints = [milestone for milestone in project.list_milestones(closed=False)
+                   if not getattr(milestone, "is_closed", False)
+                   and getattr(milestone, "is_active", True)]
         for sprint in sprints:
             for user_story in sprint.user_stories:
                 if not user_story.is_closed:
                     await manage_user_story(user_story)
     else:
+        status_map = {status.id: status.name.lower() for status in project.list_user_story_statuses()}
         for us in project.list_user_stories():
-            if not us.is_closed and not us.status_extra_info.get("is_closed"):
+            status_id = (us.status.get("id") if isinstance(us.status, dict)
+                         else getattr(us.status, "id", us.status))
+            status_name = status_map.get(status_id, "")
+            if (not us.is_closed
+                    and not us.status_extra_info.get("is_closed")
+                    and status_name in ["ready", "in progress", "ready for test"]):
                 await manage_user_story(us)
 
 
@@ -500,7 +508,7 @@ async def on_ready() -> None:
     """Called when the Discord bot is fully ready."""
     channel_list = [bot.get_channel(x) for x in DISCORD_LOG_CHANNEL]
     util_logging.override_defaults(override=channel_list)
-    discord_log_worker.start()
+    # discord_log_worker.start()
 
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
 
