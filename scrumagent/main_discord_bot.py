@@ -92,9 +92,9 @@ data_collector_list = [discord_chat_collector]
 
 @util_logging.exception(__name__)
 def run_agent_in_cb_context(
-    messages: List[HumanMessage],
-    config: dict,
-    cost_position: Optional[str] = None,
+        messages: List[HumanMessage],
+        config: dict,
+        cost_position: Optional[str] = None,
 ) -> dict:
     """Run the agent graph and track token costs."""
     with get_openai_callback() as cb:
@@ -114,10 +114,10 @@ def run_agent_in_cb_context(
 
 
 async def run_agent_async(
-    typing_channel: discord.abc.Messageable,
-    messages: List[HumanMessage],
-    config: dict,
-    cost_position: Optional[str] = None,
+        typing_channel: discord.abc.Messageable,
+        messages: List[HumanMessage],
+        config: dict,
+        cost_position: Optional[str] = None,
 ) -> str:
     """Run the agent graph in an executor while showing a typing indicator."""
     async with typing_channel.typing():
@@ -146,7 +146,7 @@ def prepare_attachments(attachments: List[discord.Attachment]) -> List[str]:
 
 
 async def send_split_message(
-    destination: discord.abc.Messageable, text: str, *, reply: bool = False
+        destination: discord.abc.Messageable, text: str, *, reply: bool = False
 ) -> None:
     """Send ``text`` split into Discord-sized segments."""
     for segment in split_text_smart(text):
@@ -168,7 +168,7 @@ def build_question_format(message: discord.Message, channel_name: str) -> str:
         if message.channel.id in DISCORD_CHANNEL_TO_TAIGA_SLAG_MAP:
             taiga_slug = DISCORD_CHANNEL_TO_TAIGA_SLAG_MAP[message.channel.id]
         elif getattr(message.channel, "parent", None) is not None and (
-            message.channel.parent.id in DISCORD_CHANNEL_TO_TAIGA_SLAG_MAP
+                message.channel.parent.id in DISCORD_CHANNEL_TO_TAIGA_SLAG_MAP
         ):
             taiga_slug = DISCORD_CHANNEL_TO_TAIGA_SLAG_MAP[message.channel.parent.id]
 
@@ -181,9 +181,9 @@ def build_question_format(message: discord.Message, channel_name: str) -> str:
 
 
 async def add_users_to_thread(
-    discord_thread: discord.Thread,
-    us_info: dict,
-    guild_channel: discord.abc.GuildChannel,
+        discord_thread: discord.Thread,
+        us_info: dict,
+        guild_channel: discord.abc.GuildChannel,
 ) -> None:
     """Invite associated Taiga users to the Discord thread."""
     associated_users = [w["id"] for w in us_info["watchers"]]
@@ -208,10 +208,10 @@ async def add_users_to_thread(
 
 
 async def ensure_user_story_thread(
-    user_story: UserStory,
-    project_slug: str,
-    taiga_thread_channel: discord.abc.GuildChannel,
-    thread_map: dict,
+        user_story: UserStory,
+        project_slug: str,
+        taiga_thread_channel: discord.abc.GuildChannel,
+        thread_map: dict,
 ) -> None:
     """Create or update a Discord thread for the given user story."""
     thread_name = f"#{user_story.ref} {user_story.subject}"
@@ -315,8 +315,8 @@ async def on_message(message: discord.Message) -> None:
     # just add the question to the state of the multi-agent graph without
     # generating a reply.
     if (
-        not bot_explicitly_mentioned
-        and type(message.channel) != discord.DMChannel
+            not bot_explicitly_mentioned
+            and type(message.channel) != discord.DMChannel
     ):
         print(f"Add question to state: {question_format}")
         # I don't think it is needed to update the state manuel with alle msg before the question.
@@ -499,16 +499,16 @@ def get_active_user_stories(project: Any) -> List[UserStory]:
             )
             status_name = status_map.get(status_id, "")
             if (
-                not us.is_closed
-                and not us.status_extra_info.get("is_closed")
-                and status_name in ["ready", "in progress", "ready for test"]
+                    not us.is_closed
+                    and not us.status_extra_info.get("is_closed")
+                    and status_name in ["ready", "in progress", "ready for test"]
             ):
                 user_stories.append(us)
     return user_stories
 
 
 async def get_discord_thread_map(
-    channel: discord.abc.GuildChannel,
+        channel: discord.abc.GuildChannel,
 ) -> dict[str, discord.Thread]:
     """Return mapping of thread names to Discord thread objects, including archived threads."""
     thread_map = {t.name: t for t in channel.threads}
