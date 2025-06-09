@@ -305,9 +305,17 @@ async def on_message(message: discord.Message) -> None:
     if attachments_prepared:
         question_format += "\nAttachments:\n" + "\n".join(attachments_prepared)
 
-    # If the bot is not mentioned in the message, add the question to the state of the multi-agent graph.
+    # Determine if the bot was explicitly mentioned in the message. ``User.mentioned_in``
+    # also returns ``True`` for ``@here`` or ``@everyone`` mentions, which should not
+    # trigger the bot. Therefore we explicitly check if the bot user is in the
+    # ``message.mentions`` list.
+    bot_explicitly_mentioned = bot.user in message.mentions
+
+    # If the bot is not explicitly mentioned in the message and it is not a DM,
+    # just add the question to the state of the multi-agent graph without
+    # generating a reply.
     if (
-        not bot.user.mentioned_in(message)
+        not bot_explicitly_mentioned
         and type(message.channel) != discord.DMChannel
     ):
         print(f"Add question to state: {question_format}")
