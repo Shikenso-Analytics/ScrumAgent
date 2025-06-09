@@ -247,10 +247,13 @@ async def ensure_user_story_thread(
                 type=ChannelType.private_thread,
                 auto_archive_duration=4320,
             )
-        msg = await discord_thread.send(
-            f"**{thread_name}**:\n{us_full_infos['description']}\n{us_full_infos['url']}"
-        )
-        await msg.pin()
+        header = f"**{thread_name}**:\n"
+        body = f"{us_full_infos['description']}\n{us_full_infos['url']}"
+
+        # 1) erstes Segment senden & pinnen
+        segments = list(split_text_smart(header + body, max_length=3500))
+        first_msg = await discord_thread.send(segments[0])
+        await first_msg.pin()
 
         init_prompt = scrum_promts.init_user_story_thread_promt.format(
             taiga_ref=user_story.ref,
