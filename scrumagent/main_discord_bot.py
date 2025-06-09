@@ -10,7 +10,7 @@ import httpx
 import pytz
 import taiga
 import yaml
-from discord import ChannelType
+from discord import ChannelType, Message
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 from langchain_community.callbacks import get_openai_callback
@@ -227,12 +227,16 @@ async def ensure_user_story_thread(
 
     if thread_name in thread_map:
         discord_thread = thread_map[thread_name]
+        # Check if the thread is archived and unarchive it if necessary
+        if discord_thread.archived:
+            await discord_thread.edit(archived=False)
         pins = await discord_thread.pins()
         if not pins:
-            messages = [
+            messages: List[Message] = [
                 m async for m in discord_thread.history(limit=1, oldest_first=True)
             ]
-            if messages:
+            # If there are no pinned messages, pin the first message if not system message
+            if messages and not messages[0].is_system():
                 await messages[0].pin()
     else:
         if DISCORD_THREAD_TYPE == "public_thread":
