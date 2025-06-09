@@ -11,7 +11,7 @@ from typing_extensions import TypedDict
 
 from .agent_state import State
 
-MAX_MSG_COUNT = int(os.getenv("MAX_MSG_COUNT"))
+MAX_MSG_COUNT = int(os.getenv("MAX_MSG_COUNT", "30"))
 MAX_MSG_MODE = os.getenv("MAX_MSG_MODE")
 
 ACTIVATE_DEEPSEEK = os.getenv("ACTIVATE_DEEPSEEK", "").lower() in ("true", "1", "yes", "on")
