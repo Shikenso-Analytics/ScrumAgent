@@ -11,18 +11,30 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 from langgraph.types import interrupt
 from pymongo import MongoClient
+from graphviz import Digraph
+
+from pathlib import Path
 
 from scrumagent.agents.agent_state import State
 from scrumagent.agents.deepseek_r1_agent import llm_agent
 from scrumagent.agents.discord_agent import discord_search_agent
 from scrumagent.agents.supervisor_agent import supervisor_node
 from scrumagent.agents.taiga_agent import taiga_agent
+from scrumagent.agents.jira_agent import jira_agent
 from scrumagent.agents.web_agent import research_agent
-from scrumagent.tools.timeframe_parser_tool import interpret_timeframe_tool, current_timestamp_tool
+from scrumagent.tools.timeframe_parser_tool import (
+    interpret_timeframe_tool,
+    current_timestamp_tool,
+)
 
-load_dotenv()
 
-ACTIVATE_DEEPSEEK = os.getenv("ACTIVATE_DEEPSEEK", "").lower() in ("true", "1", "yes", "on")
+ACTIVATE_DEEPSEEK = os.getenv("ACTIVATE_DEEPSEEK", "").lower() in (
+    "true",
+    "1",
+    "yes",
+    "on",
+)
+
 
 def human_input_node(state: State) -> Command[Literal["supervisor"]]:
     """Wait for user input and return to the supervisor node."""
@@ -32,10 +44,12 @@ def human_input_node(state: State) -> Command[Literal["supervisor"]]:
     human_message = interrupt("human_input")
     return Command(
         update={
-            "messages": [{
-                "role": "human",
-                "content": human_message,
-            }]
+            "messages": [
+                {
+                    "role": "human",
+                    "content": human_message,
+                }
+            ]
         },
         goto="supervisor",
     )
@@ -51,6 +65,7 @@ def human_input_node(state: State) -> Command[Literal["supervisor"]]:
 #         },
 #         goto="supervisor",
 #     )
+
 
 def web_node(state: State) -> Command[Literal["supervisor"]]:
     """Invoke the research agent and pass the result back to the supervisor."""
@@ -113,6 +128,18 @@ def taiga_node(state: State) -> Command[Literal["supervisor"]]:
     )
 
 
+def jira_node(state: State) -> Command[Literal["supervisor"]]:
+    print("Jira Agent invoked state: " + state["messages"][-1].content)
+    result = jira_agent.invoke(state)
+    print(f"Jira Agent response: {result['messages'][-1].content}")
+    return Command(
+        update={
+            "messages": [AIMessage(content=result["messages"][-1].content, name="jira")]
+        },
+        goto="supervisor",
+    )
+
+
 def time_parser_node(state: State) -> Command[Literal["supervisor"]]:
     """Parse natural language timeframes in the user's last message."""
     # 1) Extract the user query (raw_timeframe) from 'state'
@@ -125,11 +152,7 @@ def time_parser_node(state: State) -> Command[Literal["supervisor"]]:
     # 3) Return to supervisor with the result
     return Command(
         goto="supervisor",
-        update={
-            "messages": [
-                AIMessage(content=timestamp_str, name="time_parser")
-            ]
-        }
+        update={"messages": [AIMessage(content=timestamp_str, name="time_parser")]},
     )
 
 
@@ -142,11 +165,7 @@ def current_timestamp_node(state: State) -> Command[Literal["supervisor"]]:
     # 2) Return to supervisor with the result
     return Command(
         goto="supervisor",
-        update={
-            "messages": [
-                AIMessage(content=timestamp_str, name="time_parser")
-            ]
-        }
+        update={"messages": [AIMessage(content=timestamp_str, name="time_parser")]},
     )
 
 
@@ -165,7 +184,7 @@ def build_graph() -> CompiledStateGraph:
         builder.add_node("deepseek", llm_node)
     builder.add_node("human_input", human_input_node)
     builder.add_node("taiga", taiga_node)
-    # builder.add_node("time_parser", time_parser_node)
+    builder.add_node("jira", jira_node)
 
     # checkpointer = MemorySaver()
     # checkpointer = PostgresSaver(ConnectionPool())
@@ -184,3 +203,6 @@ def build_graph() -> CompiledStateGraph:
     graph = builder.compile(checkpointer=checkpointer)  # , store=in_memory_store)
 
     return graph
+
+
+build_graph()
