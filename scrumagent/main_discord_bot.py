@@ -197,12 +197,19 @@ async def add_users_to_thread(
             associated_users.extend(task["watchers"])
 
     associated_users = list(set(associated_users))
+
+    try:
+        members = await discord_thread.fetch_members()
+        present_ids = {m.id for m in members}
+    except discord.HTTPException:
+        present_ids = set()          # Fallback
+
     for user in associated_users:
         if user not in TAIGA_USER_TO_DISCORD_USER_MAP:
             continue
         discord_user_name = TAIGA_USER_TO_DISCORD_USER_MAP[user]
         discord_user = discord.utils.get(guild_channel.members, name=discord_user_name)
-        if discord_user and discord_user not in discord_thread.members:
+        if discord_user and discord_user.id not in present_ids:
             await discord_thread.add_user(discord_user)
             await asyncio.sleep(0.5)
 
@@ -490,7 +497,7 @@ def get_active_user_stories(project: Any) -> List[UserStory]:
             if not getattr(m, "is_closed", False) and getattr(m, "is_active", True)
         ]
         user_stories = [
-            us for sprint in sprints for us in sprint.user_stories if not us.is_closed
+            project.get_userstory_by_ref(us.ref) for sprint in sprints for us in sprint.user_stories if not us.is_closed
         ]
     else:
         status_map = {
@@ -510,7 +517,7 @@ def get_active_user_stories(project: Any) -> List[UserStory]:
                     and not us.status_extra_info.get("is_closed")
                     and status_name in ["ready", "in progress", "ready for test"]
             ):
-                user_stories.append(us)
+                user_stories.append(project.get_userstory_by_ref(us.ref))
     return user_stories
 
 
@@ -586,7 +593,7 @@ async def on_ready() -> None:
     """Called when the Discord bot is fully ready."""
     channel_list = [bot.get_channel(x) for x in DISCORD_LOG_CHANNEL]
     util_logging.override_defaults(override=channel_list)
-    # discord_log_worker.start()
+    discord_log_worker.start()
 
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
 
