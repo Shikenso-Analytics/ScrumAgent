@@ -447,9 +447,9 @@ def extract_tags(us: Any) -> set[str]:
     if isinstance(us, dict):  # JSON from the tool
         return {t[0].lower() for t in us.get("tags", []) if t}
     if isinstance(us, UserStory):
-        return {t[0].lower() for t in us.tags if t}
+        return {t[0].lower() for t in getattr(us, "tags", []) if t}
     # Python client object
-    return {t.lower() for t in us.tags}
+    return {t.lower() for t in getattr(us, "tags", [])}
 
 
 def standup_due_today(us: Any) -> bool:
