@@ -244,7 +244,7 @@ Below are examples showing **how to create and update Taiga issues or user stori
 |-----------------------------|---------------|------------------------------------------------------------------------------|
 | `daily stand‑up`            | Stand‑up **every day** (incl. weekends) | <img src="assets/daily_stand-up.png" alt="Tag field in Taiga" height="30"/>  |
 | `weekly stand‑up`           | Stand‑up **Mondays only**              | <img src="assets/weekly_stand-up.png" alt="Tag field in Taiga" height="30"/> |
-| _no tag_                    | Stand‑up **Monday–Friday** (default)   | —                                                                            |
+| _no tag_                    | Stand‑up **Mondays only** (default)   | —                                                                            |
 
 **How to use**
 
