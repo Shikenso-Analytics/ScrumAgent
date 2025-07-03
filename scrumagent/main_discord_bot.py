@@ -468,8 +468,7 @@ def standup_due_today(us: Any) -> bool:
     - ``"daily stand-up"``    – a message is posted every day, including
       weekends.
     - ``"weekly stand-up"``   – only post on Mondays.
-    - no tag                  – default behaviour; post Monday through
-      Friday.
+    - no tag                  – default behaviour; post Mondays only.
 
     Args:
         us (dict | taiga.models.UserStory): The user story object or its
@@ -485,7 +484,7 @@ def standup_due_today(us: Any) -> bool:
         return True
     if "weekly stand-up" in tags:
         return today_idx == 0
-    return today_idx < 5
+    return today_idx == 0
 
 
 def get_active_user_stories(project: Any) -> List[UserStory]:
