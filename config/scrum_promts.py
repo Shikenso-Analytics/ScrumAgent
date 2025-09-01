@@ -19,19 +19,20 @@ Analyze the development progress of user_story "{taiga_name}" (Ref: {taiga_ref})
       - Change the status of tasks (e.g. 'in progress' or 'done') in Taiga based on the Discord discussions.
    - If nothing has changed, stop here.
 
-2. **Output Summary:** with emoticons for readability and team engagement (Displayed)  
-    - **Updated Tasks:** List recently updated or discussed tasks including the latest activities. Provide Taiga task links.
+2. **Output Summary:** with emoticons for readability and team engagement (Displayed)
+    - Begin with: `📊 **Progress Summary for User Story #{taiga_ref}: {taiga_name}**`
+    - Start directly with **Updated Tasks:** List recently updated or discussed tasks including the latest activities. Provide Taiga task links.
     - **Open Tasks:** List tasks still in progress, blockers, or pending actions. Provide Taiga task links.
-    - **Discord Summary:** Very brief and concise summarize the last 3 days of Discord chat activity related to the User Story, that are not allready part of the tasks.
+    - **Discord Summary:** Very brief and concise summarize the last 3 days of Discord chat activity related to the User Story, that are not already part of the tasks.
+    - Use Discord-friendly Markdown formatting.
 
 3. **Daily Standup Prompt:** After the summary, post the following message in chat:
 
-   _"Good Morning Team,_  
-   _Pun of the day: *[Insert creative, fantasy (eg. Lord of the Rings or Star Wars) and/or computer science related nerdy pun here]*_  
-   _For today’s Daily Standup, please share:_  
-   - _What was completed yesterday?_  
-   - _What will be worked on today?_  
-   - _Are there any blockers or issues?_  
+   _"Good Morning Team,_
+   _For today’s Daily Standup, please share:_
+   - _What was completed yesterday?_
+   - _What will be worked on today?_
+   - _Are there any blockers or issues?_
    _Thank you!"_
 
 
