@@ -465,6 +465,7 @@ def standup_due_today(us: Any) -> bool:
     The decision is based on the tags attached to the Taiga user
     story:
 
+    - ``"no stand-up"``       – never post a stand‑up.
     - ``"daily stand-up"``    – a message is posted every day, including
       weekends.
     - ``"weekly stand-up"``   – only post on Mondays.
@@ -480,6 +481,8 @@ def standup_due_today(us: Any) -> bool:
     """
     tags = extract_tags(us)
     today_idx = datetime.datetime.now(BERLIN_TZ).weekday()  # 0 = Monday
+    if "no stand-up" in tags:
+        return False
     if "daily stand-up" in tags:
         return True
     if "weekly stand-up" in tags:
