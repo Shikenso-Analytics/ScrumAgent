@@ -243,14 +243,15 @@ Below are examples showing **how to create and update Taiga issues or user stori
 | Tag on the Taiga user story | Bot behaviour | Where to add it                                                              |
 |-----------------------------|---------------|------------------------------------------------------------------------------|
 | `daily stand‑up`            | Stand‑up **every day** (incl. weekends) | <img src="assets/daily_stand-up.png" alt="Tag field in Taiga" height="30"/>  |
-| `weekly stand‑up`           | Stand‑up **Mondays only**              | <img src="assets/weekly_stand-up.png" alt="Tag field in Taiga" height="30"/> |
-| _no tag_                    | Stand‑up **Mondays only** (default)   | —                                                                            |
+| `weekly stand‑up`           | Stand‑up **Mondays only**              | <img src="assets/weekly stand-up.png" alt="Tag field in Taiga" height="30"/> |
+| `no stand‑up`              | **No stand‑up**                        | — |
+| _no tag_                    | Stand‑up **Mondays only** (default)   | — |
 
 **How to use**
 
-1. Open the user story in **Taiga**.  
-2. In the **Tags** field add either `daily stand‑up` or `weekly stand‑up`.  
-3. If neither tag is set, the bot automatically posts on weekdays.
+1. Open the user story in **Taiga**.
+2. In the **Tags** field add either `daily stand‑up`, `weekly stand‑up`, or `no stand‑up`.
+3. If none of these tags is set, the bot automatically posts on Mondays.
 
 _No extra configuration needed – this logic is built into the bot._
 
