@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scrumagent-webhook
+  labels:
+    app: scrumagent-webhook
+    component: webhook-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scrumagent-webhook
+  template:
+    metadata:
+      labels:
+        app: scrumagent-webhook
+        component: webhook-server
+    spec:
+      containers:
+        - name: scrumagent-webhook
+          image: 71yrsphy.c1.de1.container-registry.ovh.net/kenso-images/scrumagent-webhook:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+              protocol: TCP
+          env:
+            # Taiga Configuration
+            - name: TAIGA_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scrumagent-secrets
+                  key: TAIGA_API_URL
+            - name: TAIGA_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scrumagent-secrets
+                  key: TAIGA_URL
+            - name: TAIGA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: scrumagent-secrets
+                  key: TAIGA_USERNAME
+            - name: TAIGA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: scrumagent-secrets
+                  key: TAIGA_PASSWORD
+            # Optional: Taiga Token (alternative to username/password)
+            - name: TAIGA_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: scrumagent-secrets
+                  key: TAIGA_TOKEN
+                  optional: true
+            # Optional: Webhook Secret for verification
+            - name: TAIGA_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: scrumagent-secrets
+                  key: TAIGA_WEBHOOK_SECRET
+                  optional: true
+            # Discord Configuration
+            - name: DISCORD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: scrumagent-secrets
+                  key: DISCORD_TOKEN
+            - name: DISCORD_GUILD_ID
+              valueFrom:
+                secretKeyRef:
+                  name: scrumagent-secrets
+                  key: DISCORD_GUILD_ID
+                  optional: true
+            # OpenAI for LangChain agent (optional)
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: scrumagent-secrets
+                  key: OPENAI_API_KEY
+                  optional: true
+            # Optional: LangSmith tracing
+            - name: LANGCHAIN_TRACING_V2
+              value: "false"
+            - name: LANGCHAIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: scrumagent-secrets
+                  key: LANGCHAIN_API_KEY
+                  optional: true
+            - name: LANGCHAIN_PROJECT
+              value: "ScrumAgent-Webhook"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: config
+              mountPath: /app/config/taiga_discord_maps.yaml
+              subPath: taiga_discord_maps.yaml
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: scrumagent-config
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 1000
+      imagePullSecrets:
+        - name: my-registry-secret

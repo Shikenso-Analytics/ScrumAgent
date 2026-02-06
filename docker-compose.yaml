@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  scrumagent-webhook:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scrumagent-webhook
+    ports:
+      - "8000:8000"
+    environment:
+      # Taiga Configuration
+      - TAIGA_API_URL=${TAIGA_API_URL:-https://api.taiga.io}
+      - TAIGA_URL=${TAIGA_URL:-https://tree.taiga.io}
+      - TAIGA_USERNAME=${TAIGA_USERNAME}
+      - TAIGA_PASSWORD=${TAIGA_PASSWORD}
+      - TAIGA_TOKEN=${TAIGA_TOKEN:-}
+      - TAIGA_BOT_USERNAME=${TAIGA_BOT_USERNAME:-}
+      - TAIGA_WEBHOOK_SECRET=${TAIGA_WEBHOOK_SECRET:-}
+      # Discord Configuration
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID:-}
+      # OpenAI for LangChain agent
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Optional: LangSmith tracing
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-false}
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
+      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-ScrumAgent-Webhook}
+    volumes:
+      - ./config/taiga_discord_maps.yaml:/app/config/taiga_discord_maps.yaml:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: MongoDB for agent memory persistence
+  mongodb:
+    image: mongo:7
+    container_name: scrumagent-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+    profiles:
+      - full
+
+volumes:
+  mongodb_data:

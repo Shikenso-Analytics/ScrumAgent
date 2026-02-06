@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: scrumagent-webhook
+
+namespace: scrumagent
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - configmap.yaml
+
+# Note: secrets.yaml should be applied separately or managed via sealed-secrets/external-secrets
+# Do not include secrets.yaml in kustomization for security reasons
+
+commonLabels:
+  app.kubernetes.io/name: scrumagent-webhook
+  app.kubernetes.io/component: webhook-server
+  app.kubernetes.io/part-of: scrumagent
+
+images:
+  - name: scrumagent-webhook
+    newName: your-registry/scrumagent-webhook
+    newTag: latest

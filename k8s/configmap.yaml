@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scrumagent-config
+  labels:
+    app: scrumagent-webhook
+data:
+  taiga_discord_maps.yaml: |
+    # Taiga to Discord channel mappings
+    # Configure your project slugs to Discord channels here
+    
+    interactable_discord_channels:
+      - "general"
+      - "scrum"
+    
+    taiga_slag_to_discord_channel_map:
+      my-project: "scrum-channel"
+    
+    taiga_discord_user_map:
+      taiga-username: discord-user-id
+    
+    discord_log_channels:
+      - "bot-logs"
