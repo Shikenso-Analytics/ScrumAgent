@@ -1,0 +1,56 @@
+[project]
+name = "scrumagent"
+version = "2.0.0"
+description = "AI-powered Scrum Master agent with MCP tool integration"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    # Core Framework (LangChain 1.x)
+    "langchain>=1.2.8",
+    "langchain-core>=1.2.9",
+    "langchain-community>=1.2.0",
+    "langchain-openai>=1.1.7",
+    "langchain-anthropic>=1.3.1",
+    "langchain-ollama>=1.0.0",
+    "langchain-chroma>=1.0.0",
+
+    # LangGraph (1.x)
+    "langgraph>=1.0.7",
+    "langgraph-cli>=0.4.12",
+    "langgraph-checkpoint-mongodb>=1.0.0",
+
+    # MCP Integration
+    "langchain-mcp-adapters>=0.2.1",
+    "langchain-taiga>=1.5.0",
+
+    # Discord Bot
+    "discord.py>=2.5.0",
+
+    # Web Search Tools
+    "duckduckgo-search>=7.5.0",
+    "arxiv>=2.1.3",
+    "wikipedia>=1.4.0",
+    "youtube-search>=2.1.2",
+
+    # Storage & Persistence
+    "pymongo>=4.11.1",
+    "chromadb>=0.6.0",
+
+    # Utilities
+    "httpx>=0.28.1",
+    "pytz>=2025.1",
+    "python-dotenv>=1.0.1",
+    "uvicorn>=0.34.0",
+    "langsmith>=0.3.11",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.1",
+    "pytest-asyncio>=0.25.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

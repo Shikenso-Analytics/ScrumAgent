@@ -8,7 +8,6 @@ from typing import Any, List, Optional
 import discord
 import httpx
 import pytz
-import taiga
 import yaml
 from discord import ChannelType, Message
 from discord.ext import commands, tasks
@@ -20,7 +19,7 @@ from taiga.models import UserStory
 
 from config import scrum_promts
 from scrumagent import util_logging
-from scrumagent.build_agent_graph import build_graph
+from scrumagent.agent import ScrumAgent
 from scrumagent.data_collector.discord_chat_collector import DiscordChatCollector
 from scrumagent.utils import split_text_smart, init_discord_chroma_db
 
@@ -67,27 +66,20 @@ listener = util_logging.start_listener()
 
 print("Discord Bot initialized.")
 
-# Initialize the multi-agent graph for /ama requests
-multi_agent_graph = build_graph()
-print("Multi-agent graph initialized.")
+# Initialize the ScrumAgent (MCP lifecycle managed in on_ready/on_close)
+scrum_agent = ScrumAgent()
+print("ScrumAgent created (MCP connections start on_ready).")
 
-# Draw the graph for visualization purposes (optional)
-# multi_agent_graph.get_graph(xray=True).draw_mermaid_png(output_file_path="multi_agent_graph.png")
-
-# daily_calculated_openai_cost = 0
 summed_up_open_ai_cost = {"undefined": 0}  # per taiga_slug
 
 # Initialize the data collector database
 discord_chroma_db = init_discord_chroma_db()
 
-# Initialize the data collectors. Deactivated datacollector for now. Only discord chat collector is active.
+# Initialize the data collectors
 discord_chat_collector = DiscordChatCollector(
     bot, discord_chroma_db, filter_channels=INTERACTABLE_DISCORD_CHANNELS
 )
 data_collector_list = [discord_chat_collector]
-
-
-# https://python.langchain.com/docs/how_to/trim_messages/#trimming-based-on-message-count
 
 
 @util_logging.exception(__name__)
@@ -98,11 +90,7 @@ def run_agent_in_cb_context(
 ) -> dict:
     """Run the agent graph and track token costs."""
     with get_openai_callback() as cb:
-        result = multi_agent_graph.invoke(
-            {"messages": messages},
-            config,
-            # debug=True
-        )
+        result = scrum_agent.invoke(messages, config)
 
         if cost_position:
             if cost_position not in summed_up_open_ai_cost:
@@ -202,7 +190,7 @@ async def add_users_to_thread(
         members = await discord_thread.fetch_members()
         present_ids = {m.id for m in members}
     except discord.HTTPException:
-        present_ids = set()          # Fallback
+        present_ids = set()
 
     for user in associated_users:
         if user not in TAIGA_USER_TO_DISCORD_USER_MAP:
@@ -234,7 +222,6 @@ async def ensure_user_story_thread(
 
     if thread_name in thread_map:
         discord_thread = thread_map[thread_name]
-        # Check if the thread is archived and unarchive it if necessary
         if discord_thread.archived:
             await discord_thread.edit(archived=False)
         pins = await discord_thread.pins()
@@ -242,7 +229,6 @@ async def ensure_user_story_thread(
             messages: List[Message] = [
                 m async for m in discord_thread.history(limit=1, oldest_first=True)
             ]
-            # If there are no pinned messages, pin the first message if not system message
             if messages and not messages[0].is_system():
                 await messages[0].pin()
     else:
@@ -261,7 +247,6 @@ async def ensure_user_story_thread(
         header = f"**{thread_name}**:\n"
         body = f"{us_full_infos['description']}\n{us_full_infos['url']}"
 
-        # 1) erstes Segment senden & pinnen
         segments = list(split_text_smart(header + body, max_length=3500))
         first_msg = await discord_thread.send(segments[0])
         await first_msg.pin()
@@ -307,61 +292,31 @@ async def on_message(message: discord.Message) -> None:
             )
             summed_up_open_ai_cost["undefined"] += cb.total_cost
 
-    # Config for stateful agents
     config = {"configurable": {"user_id": channel_name, "thread_id": channel_name}}
-
-    # Prepare the question format
     question_format = build_question_format(message, channel_name)
-
-    # Prepare the attachments. Currently only images and text files are supported.
     attachments_prepared = prepare_attachments(message.attachments)
 
     if attachments_prepared:
         question_format += "\nAttachments:\n" + "\n".join(attachments_prepared)
 
-    # Determine if the bot was explicitly mentioned in the message. ``User.mentioned_in``
-    # also returns ``True`` for ``@here`` or ``@everyone`` mentions, which should not
-    # trigger the bot. Therefore we explicitly check if the bot user is in the
-    # ``message.mentions`` list.
     bot_explicitly_mentioned = bot.user in message.mentions
 
-    # If the bot is not explicitly mentioned in the message and it is not a DM,
-    # just add the question to the state of the multi-agent graph without
-    # generating a reply.
     if (
             not bot_explicitly_mentioned
             and type(message.channel) != discord.DMChannel
     ):
         print(f"Add question to state: {question_format}")
-        # I don't think it is needed to update the state manuel with alle msg before the question.
-        # https://python.langchain.com/docs/how_to/message_history/
-        # Check
-
-        # current_messages_state = multi_agent_graph.get_state(config=config).values.get("messages", [])
-        # current_messages_state.append(HumanMessage(content=question_format))
-        # multi_agent_graph.update_state(config=config, values={"messages": current_messages_state})
-
-        multi_agent_graph.update_state(
+        scrum_agent.graph.update_state(
             config=config, values={"messages": HumanMessage(content=question_format)}
         )
-
         return
 
-    # Invoke the multi-agent graph with the question.
-    # And get the total cost of the conversation.
-    # Offload the synchronous, blocking call to an executor.
     print(f"Run Agent with question: {question_format}")
     str_result = await run_agent_async(
         message.channel, [HumanMessage(content=question_format)], config
     )
     print(f"Result: {str_result}")
-
-    # send multimple messages if the result is too long (2000 char is discord limit)
     await send_split_message(message, str_result, reply=True)
-
-    # Deactivated for debugging purposes.
-    # discord_chat_collector.get_links_from_messages(message.guild, message.channel, [message])
-    # discord_chat_collector.get_files_from_messages(message.guild, message.channel, [message])
 
 
 @util_logging.exception(__name__)
@@ -396,7 +351,6 @@ async def on_guild_join() -> None:
 @bot.event
 @util_logging.exception(__name__)
 async def on_guild_remove() -> None:
-    # Do nothing for now. Delete every msg from the guild from the DB??
     print(f"Guild remove: {bot.user} (ID: {bot.user.id})")
     pass
 
@@ -404,7 +358,6 @@ async def on_guild_remove() -> None:
 @bot.event
 @util_logging.exception(__name__)
 async def on_guild_update() -> None:
-    # DO nothing for now. Update the guild info in the DB??
     print(f"Guild update: {bot.user} (ID: {bot.user.id})")
     pass
 
@@ -423,64 +376,25 @@ async def update_taiga_threads() -> None:
 async def daily_datacollector_task() -> None:
     """Run daily housekeeping routines for data collection."""
     print("Daily data collector started.")
-    # await blog_txt_collector.check_all_files_in_folder()
     pass
 
-
-"""
-@tasks.loop(time=datetime.time(hour=6, minute=0))
-async def output_total_open_ai_cost():
-    for taiga_slug, taiga_channel_id in TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP.items():
-        taiga_thread_channel = bot.get_channel(int(taiga_channel_id))
-
-        msg = f"To total cost of yesterdays OpenAI usage was: {summed_up_open_ai_cost['undefined']}"
-        await taiga_thread_channel.send(msg)
-
-        summed_up_open_ai_cost["undefined"] = 0
-"""
 
 BERLIN_TZ = pytz.timezone("Europe/Berlin")
 
 
 def extract_tags(us: Any) -> set[str]:
-    """Return all tag names of a Taiga user story in lowercase.
-
-    Args:
-        us (dict | taiga.models.UserStory): The user story object or its JSON representation.
-
-    Returns:
-        set[str]: All tags associated with the user story.
-    """
-    if isinstance(us, dict):  # JSON from the tool
+    """Return all tag names of a Taiga user story in lowercase."""
+    if isinstance(us, dict):
         return {t[0].lower() for t in us.get("tags", []) if t}
     if isinstance(us, UserStory):
         return {t[0].lower() for t in getattr(us, "tags", []) if t}
-    # Python client object
     return {t.lower() for t in getattr(us, "tags", [])}
 
 
 def standup_due_today(us: Any) -> bool:
-    """Return ``True`` if a stand‑up should be sent today.
-
-    The decision is based on the tags attached to the Taiga user
-    story:
-
-    - ``"no stand-up"``       – never post a stand‑up.
-    - ``"daily stand-up"``    – a message is posted every day, including
-      weekends.
-    - ``"weekly stand-up"``   – only post on Mondays.
-    - no tag                  – default behaviour; post Mondays only.
-
-    Args:
-        us (dict | taiga.models.UserStory): The user story object or its
-            JSON representation.
-
-    Returns:
-        bool: ``True`` if a stand‑up should be posted today, otherwise
-        ``False``.
-    """
+    """Return ``True`` if a stand-up should be sent today."""
     tags = extract_tags(us)
-    today_idx = datetime.datetime.now(BERLIN_TZ).weekday()  # 0 = Monday
+    today_idx = datetime.datetime.now(BERLIN_TZ).weekday()
     if "no stand-up" in tags:
         return False
     if "daily stand-up" in tags:
@@ -567,7 +481,7 @@ async def scrum_master_task() -> None:
                 continue
 
             if not standup_due_today(us):
-                print(f"Skip stand‑up for {thread_name} (tags rule)")
+                print(f"Skip stand-up for {thread_name} (tags rule)")
                 continue
 
             print(f"Running Scrummaster for {thread_name}")
@@ -599,11 +513,14 @@ async def on_ready() -> None:
 
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
 
+    # Start MCP connections
+    print("Starting MCP server connections...")
+    await scrum_agent.start()
+    print("ScrumAgent MCP connections established.")
+
     for assistant in data_collector_list:
         await assistant.on_startup()
 
-    # Runs with start later
-    # Get all user_stories of active sprints
     for project_slug in TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP.keys():
         await manage_user_story_threads(project_slug)
 
@@ -613,6 +530,14 @@ async def on_ready() -> None:
     daily_datacollector_task.start()
     update_taiga_threads.start()
     print(f"Tasks started.")
+
+
+@bot.event
+async def on_close() -> None:
+    """Shut down MCP connections when the bot closes."""
+    print("Shutting down MCP connections...")
+    await scrum_agent.stop()
+    print("MCP connections closed.")
 
 
 @tasks.loop(seconds=10)
