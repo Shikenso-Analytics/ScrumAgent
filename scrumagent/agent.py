@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import sentry_sdk
 from langchain_core.runnables import RunnableConfig
 
 import yaml
@@ -319,9 +320,11 @@ class ScrumAgent:
     def invoke(self, messages: list, config: RunnableConfig) -> dict:
         """Synchronous invoke — refreshes skills if TTL expired."""
         self._refresh_skills()
-        return self.graph.invoke({"messages": messages}, config)
+        with sentry_sdk.start_transaction(op="ai.agent", name="ScrumAgent.invoke"):
+            return self.graph.invoke({"messages": messages}, config)
 
     async def ainvoke(self, messages: list, config: RunnableConfig) -> dict:
         """Async invoke — refreshes skills if TTL expired."""
         self._refresh_skills()
-        return await self.graph.ainvoke({"messages": messages}, config)
+        with sentry_sdk.start_transaction(op="ai.agent", name="ScrumAgent.ainvoke"):
+            return await self.graph.ainvoke({"messages": messages}, config)

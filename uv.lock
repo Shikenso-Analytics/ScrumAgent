@@ -1573,8 +1573,8 @@ wheels = [
 
 [[package]]
 name = "langchain-taiga"
-version = "1.5.0"
-source = { git = "https://github.com/Shikenso-Analytics/langchain-taiga?rev=main#06607dcdaf61839b7b20850f7a9d64a24abcd670" }
+version = "1.8.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cachetools" },
     { name = "fastmcp" },
@@ -1583,6 +1583,10 @@ dependencies = [
     { name = "langchain-openai" },
     { name = "python-dotenv" },
     { name = "python-taiga" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/83/4f/49bcd3594f3bd845f1489a97ba965d57062152f6a0648e113186adb0fe3f/langchain_taiga-1.8.0.tar.gz", hash = "sha256:4a005bdbab56cbe62d509dfe696c9f3dc9674a7832b4ebbff127ff4cd3ce3f5e", size = 23262, upload-time = "2026-02-07T10:42:49.627Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/f8/9d28eee5768259a57294254af86a547e7e8072d232e40a0e6dbd3667ed84/langchain_taiga-1.8.0-py3-none-any.whl", hash = "sha256:92a46b3ff08064e08e3c69334019834356f6190c56641bbbf60ddf38f2adb66b", size = 23537, upload-time = "2026-02-07T10:42:47.942Z" },
 ]
 
 [[package]]
@@ -3365,7 +3369,7 @@ requires-dist = [
     { name = "langchain-mcp-adapters", specifier = ">=0.2.1" },
     { name = "langchain-ollama", specifier = ">=1.0.0" },
     { name = "langchain-openai", specifier = ">=1.1.7" },
-    { name = "langchain-taiga", git = "https://github.com/Shikenso-Analytics/langchain-taiga?rev=main" },
+    { name = "langchain-taiga", specifier = ">=1.8.0" },
     { name = "langgraph", specifier = ">=1.0.7" },
     { name = "langgraph-checkpoint-mongodb", specifier = ">=0.3.0" },
     { name = "langgraph-cli", specifier = ">=0.4.12" },

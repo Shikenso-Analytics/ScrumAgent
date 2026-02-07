@@ -21,7 +21,7 @@ dependencies = [
 
     # MCP Integration
     "langchain-mcp-adapters>=0.2.1",
-    "langchain-taiga @ git+https://github.com/Shikenso-Analytics/langchain-taiga@main",
+    "langchain-taiga>=1.8.0",
 
     # Discord Bot
     "discord.py>=2.5.0",
@@ -37,7 +37,7 @@ dependencies = [
     "chromadb>=0.6.0",
 
     # Observability
-    "sentry-sdk>=2.0.0",
+    "sentry-sdk>=2.43.0",
 
     # Utilities
     "httpx>=0.28.1",

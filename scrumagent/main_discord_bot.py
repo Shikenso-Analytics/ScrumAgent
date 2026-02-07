@@ -10,6 +10,7 @@ import discord
 import httpx
 import pytz
 import sentry_sdk
+from sentry_sdk.integrations.langchain import LangchainIntegration
 import yaml
 from discord import ChannelType, Message
 from discord.ext import commands, tasks
@@ -31,7 +32,17 @@ load_dotenv()
 # Sentry — only activate when DSN is configured
 _sentry_dsn = os.getenv("SENTRY_DSN")
 if _sentry_dsn:
-    sentry_sdk.init(dsn=_sentry_dsn)
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        send_default_pii=True,
+        enable_logs=True,
+        traces_sample_rate=1.0,
+        integrations=[
+            LangchainIntegration(
+                include_prompts=True,  # Send LLM inputs/outputs to Sentry
+            ),
+        ],
+    )
 
 logging.basicConfig(
     level=logging.INFO,
@@ -91,9 +102,9 @@ data_collector_list = [discord_chat_collector]
 
 
 async def run_agent_in_cb_context(
-        messages: List[HumanMessage],
-        config: dict,
-        cost_position: Optional[str] = None,
+    messages: List[HumanMessage],
+    config: dict,
+    cost_position: Optional[str] = None,
 ) -> dict:
     """Run the agent graph asynchronously and track token costs."""
     with get_openai_callback() as cb:
@@ -109,10 +120,10 @@ async def run_agent_in_cb_context(
 
 
 async def run_agent_async(
-        typing_channel: discord.abc.Messageable,
-        messages: List[HumanMessage],
-        config: dict,
-        cost_position: Optional[str] = None,
+    typing_channel: discord.abc.Messageable,
+    messages: List[HumanMessage],
+    config: dict,
+    cost_position: Optional[str] = None,
 ) -> str:
     """Run the agent graph while showing a typing indicator."""
     async with typing_channel.typing():
@@ -137,7 +148,7 @@ def prepare_attachments(attachments: List[discord.Attachment]) -> List[str]:
 
 
 async def send_split_message(
-        destination: discord.abc.Messageable, text: str, *, reply: bool = False
+    destination: discord.abc.Messageable, text: str, *, reply: bool = False
 ) -> None:
     """Send ``text`` split into Discord-sized segments."""
     for segment in split_text_smart(text):
@@ -159,7 +170,7 @@ def build_question_format(message: discord.Message, channel_name: str) -> str:
         if message.channel.id in DISCORD_CHANNEL_TO_TAIGA_SLAG_MAP:
             taiga_slug = DISCORD_CHANNEL_TO_TAIGA_SLAG_MAP[message.channel.id]
         elif getattr(message.channel, "parent", None) is not None and (
-                message.channel.parent.id in DISCORD_CHANNEL_TO_TAIGA_SLAG_MAP
+            message.channel.parent.id in DISCORD_CHANNEL_TO_TAIGA_SLAG_MAP
         ):
             taiga_slug = DISCORD_CHANNEL_TO_TAIGA_SLAG_MAP[message.channel.parent.id]
 
@@ -172,9 +183,9 @@ def build_question_format(message: discord.Message, channel_name: str) -> str:
 
 
 async def add_users_to_thread(
-        discord_thread: discord.Thread,
-        us_info: dict,
-        guild_channel: discord.abc.GuildChannel,
+    discord_thread: discord.Thread,
+    us_info: dict,
+    guild_channel: discord.abc.GuildChannel,
 ) -> None:
     """Invite associated Taiga users to the Discord thread."""
     associated_users = [w["id"] for w in us_info["watchers"]]
@@ -206,10 +217,10 @@ async def add_users_to_thread(
 
 
 async def ensure_user_story_thread(
-        user_story: UserStory,
-        project_slug: str,
-        taiga_thread_channel: discord.abc.GuildChannel,
-        thread_map: dict,
+    user_story: UserStory,
+    project_slug: str,
+    taiga_thread_channel: discord.abc.GuildChannel,
+    thread_map: dict,
 ) -> None:
     """Create or update a Discord thread for the given user story."""
     thread_name = f"#{user_story.ref} {user_story.subject}"
@@ -303,10 +314,7 @@ async def on_message(message: discord.Message) -> None:
 
     bot_explicitly_mentioned = bot.user in message.mentions
 
-    if (
-            not bot_explicitly_mentioned
-            and type(message.channel) != discord.DMChannel
-    ):
+    if not bot_explicitly_mentioned and type(message.channel) != discord.DMChannel:
         print(f"Add question to state: {question_format}")
         scrum_agent.graph.update_state(
             config=config, values={"messages": HumanMessage(content=question_format)}
@@ -409,7 +417,10 @@ def get_active_user_stories(project: Any) -> List[UserStory]:
             if not getattr(m, "is_closed", False) and getattr(m, "is_active", True)
         ]
         user_stories = [
-            project.get_userstory_by_ref(us.ref) for sprint in sprints for us in sprint.user_stories if not us.is_closed
+            project.get_userstory_by_ref(us.ref)
+            for sprint in sprints
+            for us in sprint.user_stories
+            if not us.is_closed
         ]
     else:
         status_map = {
@@ -425,16 +436,16 @@ def get_active_user_stories(project: Any) -> List[UserStory]:
             )
             status_name = status_map.get(status_id, "")
             if (
-                    not us.is_closed
-                    and not us.status_extra_info.get("is_closed")
-                    and status_name in ["ready", "in progress", "ready for test"]
+                not us.is_closed
+                and not us.status_extra_info.get("is_closed")
+                and status_name in ["ready", "in progress", "ready for test"]
             ):
                 user_stories.append(project.get_userstory_by_ref(us.ref))
     return user_stories
 
 
 async def get_discord_thread_map(
-        channel: discord.abc.GuildChannel,
+    channel: discord.abc.GuildChannel,
 ) -> dict[str, discord.Thread]:
     """Return mapping of thread names to Discord thread objects, including archived threads."""
     thread_map = {t.name: t for t in channel.threads}
@@ -528,7 +539,6 @@ async def on_close() -> None:
     print("Shutting down MCP connections...")
     await scrum_agent.stop()
     print("MCP connections closed.")
-
 
 
 if __name__ == "__main__":
