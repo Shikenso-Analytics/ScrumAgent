@@ -214,7 +214,7 @@ async def ensure_user_story_thread(
     """Create or update a Discord thread for the given user story."""
     thread_name = f"#{user_story.ref} {user_story.subject}"
     us_full_infos = json.loads(
-        get_entity_by_ref_tool(
+        get_entity_by_ref_tool.invoke(
             {
                 "project_slug": project_slug,
                 "entity_ref": user_story.ref,

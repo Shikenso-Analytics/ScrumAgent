@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
 import yaml
 from dotenv import load_dotenv
 from langchain_community.tools import WikipediaQueryRun, YouTubeSearchTool
@@ -13,7 +15,7 @@ from langchain_community.tools.ddg_search.tool import DuckDuckGoSearchResults
 from langchain_community.utilities import WikipediaAPIWrapper
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
 load_dotenv()
 
@@ -119,7 +121,7 @@ def _build_llm():
       - "ollama/*"  → ChatOllama (strip prefix)
       - default     → ChatOpenAI
     """
-    model = os.getenv("SCRUM_AGENT_MODEL", "gpt-4o")
+    model = os.getenv("SCRUM_AGENT_MODEL", "gpt-5.2")
     temp = float(os.getenv("SCRUM_AGENT_TEMPERATURE", "0"))
 
     if model.startswith("claude"):
@@ -176,10 +178,10 @@ class ScrumAgent:
         llm = _build_llm()
         checkpointer = _build_checkpointer()
 
-        self._graph = create_react_agent(
+        self._graph = create_agent(
             llm,
             all_tools,
-            prompt=SYSTEM_PROMPT,
+            system_prompt=SYSTEM_PROMPT,
             checkpointer=checkpointer,
         )
 
@@ -194,10 +196,10 @@ class ScrumAgent:
             raise RuntimeError("ScrumAgent not started. Call await agent.start() first.")
         return self._graph
 
-    def invoke(self, messages: list, config: dict) -> dict:
+    def invoke(self, messages: list, config: RunnableConfig) -> dict:
         """Synchronous invoke for compatibility with existing code."""
         return self.graph.invoke({"messages": messages}, config)
 
-    async def ainvoke(self, messages: list, config: dict) -> dict:
+    async def ainvoke(self, messages: list, config: RunnableConfig) -> dict:
         """Async invoke."""
         return await self.graph.ainvoke({"messages": messages}, config)

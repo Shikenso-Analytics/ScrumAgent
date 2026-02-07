@@ -19,7 +19,8 @@ taiga:
     TAIGA_PASSWORD: "${TAIGA_PASSWORD}"
 
 # GitHub — official GitHub MCP server (requires Docker or Go binary)
-# Docker's -e flag reads GITHUB_PERSONAL_ACCESS_TOKEN from the host environment.
+# The env block ensures stdio_client passes the token to the Docker subprocess,
+# and Docker's -e flag then forwards it into the container.
 github:
   transport: stdio
   command: docker
@@ -30,6 +31,8 @@ github:
     - -e
     - GITHUB_PERSONAL_ACCESS_TOKEN
     - ghcr.io/github/github-mcp-server
+  env:
+    GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_PERSONAL_ACCESS_TOKEN}"
 
 # Discord Chroma Search — our custom MCP server for semantic search
 discord_chroma:
