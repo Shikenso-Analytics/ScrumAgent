@@ -21,7 +21,7 @@ dependencies = [
 
     # MCP Integration
     "langchain-mcp-adapters>=0.2.1",
-    "langchain-taiga>=1.8.0",
+    "langchain-taiga>=1.8.1",
 
     # Discord Bot
     "discord.py>=2.5.0",

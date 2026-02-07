@@ -328,3 +328,48 @@ class ScrumAgent:
         self._refresh_skills()
         with sentry_sdk.start_transaction(op="ai.agent", name="ScrumAgent.ainvoke"):
             return await self.graph.ainvoke({"messages": messages}, config)
+
+    def clear_conversation(self, thread_id: str) -> bool:
+        """Clear the conversation history for a given thread_id.
+
+        Works for both MemorySaver and MongoDBSaver checkpointers.
+        Returns True if the conversation was cleared successfully.
+        """
+        logger = logging.getLogger(__name__)
+        if self._checkpointer is None:
+            logger.warning("No checkpointer available — cannot clear conversation")
+            return False
+
+        config = {"configurable": {"thread_id": thread_id}}
+
+        if isinstance(self._checkpointer, MemorySaver):
+            # MemorySaver stores data in .storage dict keyed by (thread_id,)
+            keys_to_delete = [
+                k for k in self._checkpointer.storage
+                if k[0] == thread_id
+            ]
+            for k in keys_to_delete:
+                del self._checkpointer.storage[k]
+            logger.info(
+                "Cleared MemorySaver conversation '%s' (%d entries)",
+                thread_id, len(keys_to_delete),
+            )
+            return True
+
+        # MongoDBSaver — delete checkpoints for this thread
+        try:
+            from langgraph.checkpoint.mongodb import MongoDBSaver
+            if isinstance(self._checkpointer, MongoDBSaver):
+                db = self._checkpointer.db
+                r1 = db["checkpoints"].delete_many({"thread_id": thread_id})
+                r2 = db["checkpoint_writes"].delete_many({"thread_id": thread_id})
+                logger.info(
+                    "Cleared MongoDB conversation '%s' (%d checkpoints, %d writes)",
+                    thread_id, r1.deleted_count, r2.deleted_count,
+                )
+                return True
+        except ImportError:
+            pass
+
+        logger.warning("Unknown checkpointer type — cannot clear conversation")
+        return False

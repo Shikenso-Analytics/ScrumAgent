@@ -509,6 +509,30 @@ async def scrum_master_task() -> None:
             await send_split_message(thread, str_result)
 
 
+@bot.tree.command(name="clear", description="Konversation zurücksetzen — startet eine saubere neue Unterhaltung")
+async def clear_command(interaction: discord.Interaction) -> None:
+    """Slash command to clear the conversation history for the current channel."""
+    await interaction.response.defer(ephemeral=True)
+
+    if isinstance(interaction.channel, discord.DMChannel):
+        channel_name = interaction.user.name
+    else:
+        channel_name = interaction.channel.name
+
+    success = scrum_agent.clear_conversation(channel_name)
+    if success:
+        await interaction.followup.send(
+            f"Konversation für **{channel_name}** wurde zurückgesetzt. "
+            f"Der nächste Prompt startet ohne Vorgeschichte.",
+            ephemeral=True,
+        )
+    else:
+        await interaction.followup.send(
+            "Konnte die Konversation nicht zurücksetzen.",
+            ephemeral=True,
+        )
+
+
 @bot.event
 async def on_ready() -> None:
     """Called when the Discord bot is fully ready."""
