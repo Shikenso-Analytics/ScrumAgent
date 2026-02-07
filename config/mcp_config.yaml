@@ -2,15 +2,24 @@
 #
 # Each entry defines an MCP server that will be connected via MultiServerMCPClient.
 # Transport options: "stdio" (subprocess) or "streamable_http" (remote).
+#
+# Environment variables use ${VAR} syntax and are resolved from the process
+# environment at startup. Unset variables are silently skipped.
 
 # Taiga Project Management — provided by langchain-taiga MCP server
 taiga:
   transport: stdio
   command: python
   args: ["-m", "langchain_taiga.mcp_server"]
+  env:
+    TAIGA_API_URL: "${TAIGA_API_URL}"
+    TAIGA_URL: "${TAIGA_URL}"
+    TAIGA_TOKEN: "${TAIGA_TOKEN}"
+    TAIGA_USERNAME: "${TAIGA_USERNAME}"
+    TAIGA_PASSWORD: "${TAIGA_PASSWORD}"
 
 # GitHub — official GitHub MCP server (requires Docker or Go binary)
-# Make sure GITHUB_PERSONAL_ACCESS_TOKEN is set in .env
+# Docker's -e flag reads GITHUB_PERSONAL_ACCESS_TOKEN from the host environment.
 github:
   transport: stdio
   command: docker
@@ -27,6 +36,10 @@ discord_chroma:
   transport: stdio
   command: python
   args: ["mcp_servers/discord_chroma_server.py"]
+  env:
+    CHROMA_DB_PATH: "${CHROMA_DB_PATH}"
+    CHROMA_DB_DISCORD_CHAT_DATA_NAME: "${CHROMA_DB_DISCORD_CHAT_DATA_NAME}"
+    OPENAI_API_KEY: "${OPENAI_API_KEY}"
 
 # Discord API (barryyip0625/mcp-discord) — search, read, send messages
 # Install: npm install -g mcp-discord
@@ -35,3 +48,5 @@ discord_api:
   transport: stdio
   command: npx
   args: ["-y", "mcp-discord"]
+  env:
+    DISCORD_TOKEN: "${DISCORD_TOKEN}"

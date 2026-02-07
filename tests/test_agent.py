@@ -16,7 +16,6 @@ class TestScrumAgentInit(unittest.TestCase):
         """ScrumAgent class can be imported."""
         from scrumagent.agent import ScrumAgent
         agent = ScrumAgent()
-        self.assertIsNone(agent._mcp_client)
         self.assertIsNone(agent._graph)
 
     def test_graph_raises_before_start(self):

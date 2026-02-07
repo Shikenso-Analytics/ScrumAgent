@@ -326,6 +326,4 @@ config/taiga_discord_maps.yaml
 /.env.public
 /config/taiga_discord_maps.yaml.public
 /config/taiga_discord_maps.yaml.shikenso
-
-# uv
-uv.lock
+config/taiga_discord_maps.yaml.personal

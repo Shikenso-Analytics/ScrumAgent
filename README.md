@@ -20,203 +20,283 @@
 
 ## Table of Contents
 
-1. [Introduction](#1-introduction)  
-2. [Features](#2-features)  
-   - [Discord Management](#discord-management)  
-   - [Taiga Scrum Master](#taiga-scrum-master)  
-   - [Web Tools](#web-tools)  
-   - [DeepSeek Reasoning](#deepseek-reasoning)  
-3. [Installation and Setup](#3-installation-and-setup)  
-   - [Python Project Setup](#python-project-setup)  
-   - [Discord Bot Setup](#discord-bot-setup)  
-   - [Environment Variables](#environment-variables)  
-4. [Usage Examples](#4-usage-examples)  
-5. [System Architecture](#5-system-architecture)  
-   - [Overview](#overview)  
-   - [Adding Agents and Tools](#adding-agents-and-tools)  
-6. [Tracing with LangSmith](#6-tracing-with-langsmith)  
-7. [Planned Features](#7-planned-features)  
-8. [Contact](#8-contact)
+1. [Introduction](#1-introduction)
+2. [Features](#2-features)
+3. [Architecture](#3-architecture)
+4. [Installation and Setup](#4-installation-and-setup)
+5. [Running Locally](#5-running-locally)
+6. [Environment Variables](#6-environment-variables)
+7. [MCP Server Configuration](#7-mcp-server-configuration)
+8. [Usage Examples](#8-usage-examples)
+9. [Testing](#9-testing)
+10. [Tracing with LangSmith](#10-tracing-with-langsmith)
+11. [Roadmap](#11-roadmap)
+12. [Contact](#12-contact)
 
 ---
 
 ## 1. Introduction
 
-**Scrum Agent** is an open-source, AI-powered supervisor designed to enhance agile project management within Discord communities. Acting as a virtual Scrum Master, this agent integrates multiple tools to streamline sprint planning, issue tracking, research, and team collaboration.
+**Scrum Agent** is an open-source, AI-powered Scrum Master that integrates Discord with Taiga project management. It uses a single ReAct agent powered by LangGraph and connects to external tools via the Model Context Protocol (MCP).
 
-By mapping individual Discord channels to corresponding Taiga projects, Scrum Agent facilitates seamless user story management through threaded discussions—ensuring efficient workflow management and improved project oversight.
+By mapping Discord channels to Taiga projects, Scrum Agent facilitates user story management through threaded discussions, automated stand-ups, and seamless synchronization between both platforms.
 
-Join our [Discord Server](https://discord.gg/ADV99kyfjg) to test the Scrum Agent and explore its features.
+Join our [Discord Server](https://discord.gg/ADV99kyfjg) to test the Scrum Agent.
 
-### Project Goals, Audience & Maturity
+### Project Goals & Audience
 
-Scrum Agent is particularly helpful for **small dev teams** without a dedicated Scrum Master, but can also be used by **larger teams** looking to keep their Discord conversations and Taiga board in sync. **Currently**, it’s designed for Discord and Taiga, but we **plan** to extend support to **Slack and Jira** as well.
-
-The project is **still in an early stage** and is under active development—use it at your own risk. That said, we welcome contributions and feedback from the community to help shape its future.
+Scrum Agent is designed for **small dev teams** without a dedicated Scrum Master, but can also be used by **larger teams** to keep Discord conversations and Taiga boards in sync. The project is under active development — contributions and feedback are welcome.
 
 ---
 
 ## 2. Features
 
-Scrum Agent offers a range of capabilities to support agile project management:
+### Discord Integration
+- Automated Discord thread creation for each Taiga user story
+- Semantic search over Discord message history (ChromaDB)
+- Daily stand-up posts at 08:00 (Berlin time)
+- Hourly Taiga-Discord synchronization
+- Smart message splitting for Discord's 2000-char limit
 
-### Discord Management
+### Taiga Project Management
+- Retrieve, create, and update user stories, tasks, and issues
+- Sprint tracking and status updates
+- Watchers and assignee management
 
-- **Seamless Integration:**  
-  Acts as a central hub for project updates and agile workflow discussions.
-  
-- **Automated Task Tracking:**  
-  Retrieves and organizes sprint-related messages to ensure no detail is overlooked.
-  
-- **Efficient Search & Retrieval:**  
-  Enables quick access to relevant messages, posts, and threads.
-  
-- **Channel and Thread Organization:**  
-  Provides a structured list of channels and active threads for easy navigation.
+### MCP Tool Servers
+- **Taiga MCP** — Full Taiga API access via `langchain-taiga`
+- **GitHub MCP** — Repository browsing, commits, branches (Docker)
+- **Discord Chroma MCP** — Semantic search over Discord messages
+- **Discord API MCP** — Direct Discord channel/message operations
 
-### Taiga Scrum Master
+### Web Research
+- DuckDuckGo search, ArXiv papers, YouTube, Wikipedia
 
-- **Issue Management:**  
-  Track and update sprints, user stories, and tasks efficiently.
-  
-- **User Story Details:**  
-  Retrieve comprehensive information, including history and assigned users.
-  
-- **Task Updates:**  
-  Modify descriptions, update statuses, and assign watchers as needed.
-  
-- **User Story Creation:**  
-  Enhance team collaboration by creating new user stories directly.
+### Multi-LLM Support
+- OpenAI (default: `gpt-4o`)
+- Anthropic Claude (`claude-sonnet-4-5-20250929`, etc.)
+- Ollama local models (`ollama/llama3`, etc.)
 
-### Web Tools
+### Stand-up Scheduling via Tags
 
-- **DuckDuckGo:**  
-  Perform efficient web searches.
-  
-- **ArXiv:**  
-  Access a wide range of research papers.
-  
-- **YouTube & Wikipedia:**  
-  Retrieve information quickly for research or reference.
-  
-- **Web Navigation:**  
-  Gather additional context and relevant data.
-
-### DeepSeek Reasoning
-
-- **Advanced Problem-Solving:**  
-  Leverage AI-driven insights to address complex challenges.
-  
-- **Strategic Analysis:**  
-  Enhance decision-making with robust analytical tools.
-  
-- **Abstract Reasoning:**  
-  Gain predictive insights and better understand abstract concepts.
+| Tag on Taiga user story | Bot behaviour |
+|-------------------------|---------------|
+| `daily stand-up`        | Stand-up **every day** |
+| `weekly stand-up`       | Stand-up **Mondays only** |
+| `no stand-up`           | **No stand-up** |
+| _no tag_                | Mondays only (default) |
 
 ---
 
-## 3. Installation and Setup
+## 3. Architecture
 
-### Python Project Setup
+Scrum Agent v2.0 uses a **single ReAct agent** (LangGraph `create_react_agent`) that connects to external tools via MCP (Model Context Protocol). Each MCP server runs as a subprocess and communicates via stdio.
 
-1. **Create and activate a Conda environment:**
+```
+Discord Bot (main_discord_bot.py)
+  └── ScrumAgent (agent.py)
+        ├── LangGraph ReAct Agent
+        │     ├── LLM (OpenAI / Anthropic / Ollama)
+        │     └── Tools
+        │           ├── MCP: Taiga (langchain-taiga)
+        │           ├── MCP: GitHub (Docker container)
+        │           ├── MCP: Discord Chroma (custom, ChromaDB)
+        │           ├── MCP: Discord API (mcp-discord npm)
+        │           ├── DuckDuckGo Search
+        │           ├── ArXiv
+        │           ├── YouTube Search
+        │           └── Wikipedia
+        └── Checkpointer (MongoDB or MemorySaver)
+```
 
-   ```bash
-   conda create -n scrumagent python=3.12 -y
-   conda activate scrumagent
-   ```
+### Key Files
 
-2. **Upgrade pip and install dependencies:**
-
-   ```bash
-   pip install --upgrade pip
-   pip install -r requirements.txt
-   ```
-
-3. **Install Ollama for DeepSeek Agent:**
-
-   Download and install [Ollama](https://ollama.com/download) (adjust size as needed):
-
-   ```bash
-   curl -fsSL https://ollama.com/install.sh | sh
-   ollama pull deepseek-r1:8b
-   ollama pull llama3.2-vision:11b
-   ```
+| File | Description |
+|------|-------------|
+| `scrumagent/agent.py` | Core agent with MCP client and LLM factory |
+| `scrumagent/main_discord_bot.py` | Discord bot entry point |
+| `mcp_servers/discord_chroma_server.py` | Custom MCP server for semantic Discord search |
+| `config/mcp_config.yaml` | MCP server configuration |
+| `config/taiga_discord_maps.yaml` | Discord-to-Taiga project mappings |
+| `pyproject.toml` | Dependencies and project config |
 
 ---
+
+## 4. Installation and Setup
+
+### Prerequisites
+
+- Python 3.10–3.12
+- [uv](https://docs.astral.sh/uv/) (Python package manager)
+- Docker (for GitHub MCP server)
+- Node.js / npm (for Discord API MCP server)
+
+### Install Dependencies
+
+```bash
+git clone https://github.com/Shikenso-Analytics/ScrumAgent.git
+cd ScrumAgent
+git checkout claude/scrumagent-langgraph-mcp-bz738
+
+# Install all dependencies including dev tools
+uv sync --all-extras
+```
+
+### Configure Environment
+
+```bash
+cp .env.example .env
+# Edit .env with your credentials (see Section 6)
+
+cp config/taiga_discord_maps.yaml.example config/taiga_discord_maps.yaml
+# Edit the mapping file to match your Discord channels and Taiga projects
+```
 
 ### Discord Bot Setup
 
-#### 1. Create Your Discord Bot
-- **Access the Developer Portal:**  
-  Visit the [Discord Developer Portal](https://discord.com/developers/applications) and sign in with your Discord account.
-- **Create a New Application:**  
-  Click **"New Application"**, give your bot a name, and create the application.
-
-#### 2. Configure OAuth2 Settings
-- **Navigate to the OAuth2 Tab:**  
-  Once your application is created, click on the **OAuth2** tab.
-- **Enable the Bot Option:**  
-  In the OAuth2 settings, activate the **"bot"** option.
-- **Set Bot Permissions:**  
-  Under the **OAuth2 Bot Permissions** section, ensure that the following permissions are enabled:
-  - **View Channels**
-  - **Send Messages**
-  - **Create Public Threads**
-  - **Create Private Threads**
-  - **Manage Threads**
-  - **Send Messages in Threads**
-  - **Manage Messages**
-  - **Read Message History**
-  - **Add Reactions**
-- **Enable Intents:**  
-  Go to the **"Bot"** tab and enable:
-  - **Server Members Intent**
-  - **Message Content Intent**
-
-#### 3. Add the Bot to Your Server
-- **Generate the OAuth2 URL:**  
-  After configuring the permissions, generate the OAuth2 URL.
-- **Invite the Bot:**  
-  Use the generated URL to invite the bot to your Discord server, and follow the on-screen instructions to complete the process.
-
-#### 4. Retrieve Your Bot Token
-1. **Go to the "Bot" Tab:**  
-   In your application settings, click on the **"Bot"** tab in the sidebar.
-2. **Reveal the Token:**  
-   Under the **"Build-A-Bot"** section, locate the **"Token"** field. Click the **"Reset Token"** or **"View Token"** button to reveal your bot token.  
-   > **Important:** Never share your bot token publicly or commit it to version control. Treat it like a password.
-3. **Copy Your Token:**  
-   Copy the bot token for the next step.
-4. **Add the Token to Your `.env` File:**  
-   - If you haven’t created a `.env` file, copy `.env.example` to `.env`.
-   - Add the following line to your `.env` file:
-     ```bash
-     DISCORD_TOKEN=YOUR_DISCORD_BOT_TOKEN_HERE
-     ```
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a new Application and go to the **Bot** tab
+3. Enable **Server Members Intent** and **Message Content Intent**
+4. In **OAuth2**, enable the **bot** scope with these permissions:
+   - View Channels, Send Messages, Read Message History
+   - Create Public/Private Threads, Manage Threads, Send Messages in Threads
+   - Manage Messages, Add Reactions
+5. Use the generated OAuth2 URL to invite the bot to your server
+6. Copy the bot token and add it to your `.env` file as `DISCORD_TOKEN`
 
 ---
 
-### Environment Variables
+## 5. Running Locally
 
-1. **Set Up Environment Variables:**
-   - Copy the file `.env.example` and rename it to `.env`.
-   - Open the new `.env` file and fill in the required details.
+### Start the Discord Bot (production mode)
 
-2. **Customize the Mapping:**
-   - Copy `config/taiga_discord_maps.yaml.example` and rename it to `config/taiga_discord_maps.yaml`.
-   - Edit this file as needed to match your project settings.
+```bash
+uv run python scrumagent/main_discord_bot.py
+```
 
-3. **Specific Settings:**
-    - `MAX_MSG_MODE`: 'trim' (only keep the last `MAX_MSG_COUNT` messages) or 'summary' (when the message count exceeds `MAX_MSG_COUNT`, summarize the messages and keep the summary as context).
-    - `MAX_MSG_COUNT`: The maximum number of messages to keep in the context.
-    - `ACTIVATE_DEEPSEEK`: Set to `True` to enable DeepSeek reasoning. (Requires Ollama installation).
-    - `DISCORD_THREAD_TYPE`: Set to `public` or `private` to specify the type of thread to create in Discord for user stories.
+This starts the Discord bot, which will:
+1. Connect to Discord and establish MCP server connections
+2. Create/update threads for each active Taiga user story
+3. Begin the daily stand-up and hourly sync tasks
+4. Listen for messages in configured channels
+
+### Debug a Single Agent Invocation
+
+To test the agent without the Discord bot, use a Python script:
+
+```bash
+uv run python -c "
+import asyncio
+from scrumagent.agent import ScrumAgent
+from langchain_core.messages import HumanMessage
+
+async def main():
+    agent = ScrumAgent()
+    await agent.start()
+    print(f'Tools loaded: {len(agent.graph.get_graph().nodes)}')
+
+    result = await agent.ainvoke(
+        [HumanMessage(content='List all active user stories in project my-project-slug')],
+        {'configurable': {'user_id': 'debug', 'thread_id': 'debug-session'}}
+    )
+    print(result['messages'][-1].content)
+
+asyncio.run(main())
+"
+```
+
+### Test Individual MCP Servers
+
+```bash
+# Taiga MCP — should print FastMCP banner and start listening
+uv run python -m langchain_taiga.mcp_server
+
+# Discord Chroma MCP — starts and waits on stdio
+uv run python mcp_servers/discord_chroma_server.py
+
+# GitHub MCP (requires Docker + GITHUB_PERSONAL_ACCESS_TOKEN)
+docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
+
+# Discord API MCP (requires npm + DISCORD_TOKEN)
+DISCORD_TOKEN=your_token npx -y mcp-discord
+```
+
+### Test MCP Tool Loading (without credentials)
+
+```bash
+# Verify all 4 web tools load
+uv run python -c "
+from scrumagent.agent import _build_web_tools
+tools = _build_web_tools()
+print(f'{len(tools)} tools: {[type(t).__name__ for t in tools]}')
+"
+
+# Verify MCP config loads and env vars resolve
+uv run python -c "
+from scrumagent.agent import _load_mcp_config
+config = _load_mcp_config()
+for name, cfg in config.items():
+    env_keys = list(cfg.get('env', {}).keys()) if 'env' in cfg else 'none'
+    print(f'{name}: env={env_keys}')
+"
+
+# Verify LLM factory
+uv run python -c "
+from scrumagent.agent import _build_llm
+llm = _build_llm()
+print(f'LLM: {type(llm).__name__}')
+"
+```
+
 ---
 
-## 4. Usage Examples
+## 6. Environment Variables
 
-Below are examples showing **how to create and update Taiga issues or user stories** directly from Discord. Changes made in Discord appear in Taiga, making project management faster and easier.
+Copy `.env.example` to `.env` and fill in the values:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SCRUM_AGENT_MODEL` | No | LLM model name. Default: `gpt-4o`. Options: `claude-sonnet-4-5-20250929`, `ollama/llama3` |
+| `SCRUM_AGENT_TEMPERATURE` | No | LLM temperature. Default: `0` |
+| `DISCORD_TOKEN` | Yes | Discord bot token |
+| `DISCORD_GUILD_ID` | Yes | Discord server (guild) ID |
+| `DISCORD_THREAD_TYPE` | No | `public_thread` or `private_thread`. Default: `public_thread` |
+| `OPENAI_API_KEY` | Yes | OpenAI API key (for embeddings and default LLM) |
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | No | GitHub token for GitHub MCP server |
+| `CHROMA_DB_PATH` | No | ChromaDB storage path. Default: `resources/chroma` |
+| `TAIGA_API_URL` | Yes | Taiga API URL (e.g. `https://api.taiga.io`) |
+| `TAIGA_URL` | Yes | Taiga web URL (e.g. `https://tree.taiga.io`) |
+| `TAIGA_TOKEN` | Yes* | Taiga auth token (alternative to username/password) |
+| `TAIGA_USERNAME` | Yes* | Taiga username (alternative to token) |
+| `TAIGA_PASSWORD` | Yes* | Taiga password (alternative to token) |
+| `MONGO_DB_URL` | No | MongoDB URL for persistent checkpointing |
+| `LANGCHAIN_TRACING_V2` | No | Set to `true` to enable LangSmith tracing |
+| `LANGCHAIN_API_KEY` | No | LangSmith API key |
+| `LANGCHAIN_PROJECT` | No | LangSmith project name |
+
+*Either `TAIGA_TOKEN` or `TAIGA_USERNAME`+`TAIGA_PASSWORD` is required.
+
+---
+
+## 7. MCP Server Configuration
+
+MCP servers are configured in `config/mcp_config.yaml`. Each server runs as a subprocess with stdio transport. Environment variables use `${VAR}` syntax and are resolved from the process environment at startup.
+
+```yaml
+taiga:
+  transport: stdio
+  command: python
+  args: ["-m", "langchain_taiga.mcp_server"]
+  env:
+    TAIGA_API_URL: "${TAIGA_API_URL}"
+    TAIGA_TOKEN: "${TAIGA_TOKEN}"
+```
+
+The `env:` block ensures API keys and tokens are passed to the MCP subprocess. Without it, only a small set of default env vars (HOME, PATH, SHELL) would be inherited.
+
+---
+
+## 8. Usage Examples
 
 ### Updating a User Story
 
@@ -225,7 +305,7 @@ Below are examples showing **how to create and update Taiga issues or user stori
   <img src="assets/userstory_taiga.png" alt="Updated user story in Taiga" height="300" />
 </p>
 
-**Left:** Updating a user story in Discord  
+**Left:** Updating a user story in Discord
 **Right:** The updated user story in Taiga
 
 ### Creating or Updating an Issue
@@ -235,103 +315,74 @@ Below are examples showing **how to create and update Taiga issues or user stori
   <img src="assets/issue_taiga.png" alt="Issue created or updated in Taiga" height="300" />
 </p>
 
-**Left:** Creating or updating an issue in Discord  
+**Left:** Creating or updating an issue in Discord
 **Right:** The newly created or updated issue in Taiga
 
-### Stand‑up Scheduling via Tags
+### Stand-up Scheduling
 
-| Tag on the Taiga user story | Bot behaviour | Where to add it                                                              |
-|-----------------------------|---------------|------------------------------------------------------------------------------|
-| `daily stand‑up`            | Stand‑up **every day** (incl. weekends) | <img src="assets/daily_stand-up.png" alt="Tag field in Taiga" height="30"/>  |
-| `weekly stand‑up`           | Stand‑up **Mondays only**              | <img src="assets/weekly stand-up.png" alt="Tag field in Taiga" height="30"/> |
-| `no stand‑up`              | **No stand‑up**                        | — |
-| _no tag_                    | Stand‑up **Mondays only** (default)   | — |
-
-**How to use**
-
-1. Open the user story in **Taiga**.
-2. In the **Tags** field add either `daily stand‑up`, `weekly stand‑up`, or `no stand‑up`.
-3. If none of these tags is set, the bot automatically posts on Mondays.
-
-_No extra configuration needed – this logic is built into the bot._
-
+1. Open the user story in **Taiga**
+2. In the **Tags** field add `daily stand-up`, `weekly stand-up`, or `no stand-up`
+3. If no tag is set, the bot posts on Mondays by default
 
 ### Try It Out!
 
-Join our [Discord Server](https://discord.gg/ADV99kyfjg) to test the Scrum Agent and explore its features.
+Join our [Discord Server](https://discord.gg/ADV99kyfjg) to test the Scrum Agent.
 
 ---
 
-## 5. System Architecture
+## 9. Testing
 
-### Overview
+### Run All Tests
 
-Scrum Agent is built on the [Langgraphs Supervisor Agent](https://langchain-ai.github.io/langgraph/tutorials/multi_agent/agent_supervisor/), which allows for flexible integration of multiple agents and tools. For more technical details, please refer to the Langgraphs documentation.
+```bash
+uv run python -m pytest tests/ -v
+```
 
-#### Architecture Diagram
+### Test Structure
 
-![Multi-Agent Architecture](assets/multi_agent_graph.png)  
-*Figure: Architecture diagram of Scrum Agent's multi-agent setup.*
+| File | Description |
+|------|-------------|
+| `tests/test_agent.py` | Unit tests for ScrumAgent (config, web tools, system prompt) |
+| `tests/test_integration.py` | Integration tests with real MCP connections (skipped if no credentials) |
+| `tests/test_mcp_discord_chroma.py` | Tests for the custom Discord Chroma MCP server |
+| `tests/test_standup_schedule.py` | Tests for stand-up scheduling logic |
 
-### Adding Agents and Tools
+Integration tests connect to individual MCP servers and are automatically skipped when the required credentials are not set:
 
-- **Adding Agents:**  
-  Insert new agent nodes in `build_agent_graph.py`.
+```bash
+# Run only unit tests (no credentials needed)
+uv run python -m pytest tests/test_agent.py tests/test_mcp_discord_chroma.py tests/test_standup_schedule.py -v
 
-- **Supervisor Configuration:**  
-  Update `supervisor_agent.py` with the agent's name and description. Ensure that the names are consistent.
-
-- **Tool Integration:**  
-  Follow the [Langgraphs Documentation](https://python.langchain.com/docs/integrations/tools/) for guidance on adding and integrating additional tools.
-
----
-
-## 6. Tracing with LangSmith
-
-To enable tracing with LangSmith, follow these steps:
-
-1. **Set Environment Variables:**
-   ```bash
-   LANGCHAIN_TRACING_V2=True
-   LANGCHAIN_API_KEY=your_api_key_here
-   LANGCHAIN_PROJECT=your_project_name
-   ```
-   Replace `your_api_key_here` with your actual API key (refer to `.env.example` for guidance).
-
-2. **Learn More:**
-   - [Tracing Documentation](https://docs.smith.langchain.com/observability/how_to_guides/tracing/trace_with_langgraph)
-   - [LangSmith Website](https://smith.langchain.com/)
-
-This configuration allows you to monitor and trace your application's activity using LangSmith.
+# Run integration tests (requires credentials in .env)
+uv run python -m pytest tests/test_integration.py -v
+```
 
 ---
 
-## 7. Testing
-If you want to use unit tests or add test files. You can go to the tests folders.The "agent_tests" folder belongs to the agents, and tool tests belong to the tools.
-For test mocking, you need to use the Taiga API. You can change from .env file
-### 7.1 Local deployment 
-you can use taiga-docker (https://github.com/taigaio/taiga-docker)
+## 10. Tracing with LangSmith
 
-1. TAIGA_URL="http://localhost:9000/"
+LangGraph 1.x automatically traces all operations when the following env vars are set:
 
-#### 7.2 Taiga io
-2. TAIGA_URL="https://api.taiga.io"
+```bash
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=your_api_key_here
+LANGCHAIN_PROJECT="Scrum Agent"
+```
 
-### 7.3 running tests
--Example usage
- ```bash
- python3 testfile.py
- ```
+No additional code or callbacks needed. All LLM calls, tool invocations, and agent steps are traced.
+
+- [LangSmith Dashboard](https://smith.langchain.com/)
+- [Tracing Documentation](https://docs.smith.langchain.com/observability/how_to_guides/tracing/trace_with_langgraph)
 
 ---
 
-## 8. Roadmap
+## 11. Roadmap
 
 See the [Taiga Project](https://tree.taiga.io/project/hemati-scrum-agent/kanban) for the latest updates and planned features.
 
 ---
 
-## 9. Contact
+## 12. Contact
 
-For inquiries, support, or contributions, please open an issue [here](https://github.com/Shikenso-Analytics/ScrumAgent/issues) or at [Taiga](https://tree.taiga.io/project/hemati-scrum-agent/issues)  
+For inquiries, support, or contributions, please open an issue [here](https://github.com/Shikenso-Analytics/ScrumAgent/issues) or at [Taiga](https://tree.taiga.io/project/hemati-scrum-agent/issues)
 or join our [Discord](https://discord.gg/ADV99kyfjg) or contact alexander.henlein@shikenso.com

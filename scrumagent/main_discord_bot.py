@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, List, Optional
@@ -8,6 +9,7 @@ from typing import Any, List, Optional
 import discord
 import httpx
 import pytz
+import sentry_sdk
 import yaml
 from discord import ChannelType, Message
 from discord.ext import commands, tasks
@@ -18,7 +20,6 @@ from langchain_taiga.tools.taiga_tools import get_entity_by_ref_tool, get_projec
 from taiga.models import UserStory
 
 from config import scrum_promts
-from scrumagent import util_logging
 from scrumagent.agent import ScrumAgent
 from scrumagent.data_collector.discord_chat_collector import DiscordChatCollector
 from scrumagent.utils import split_text_smart, init_discord_chroma_db
@@ -26,6 +27,17 @@ from scrumagent.utils import split_text_smart, init_discord_chroma_db
 mod_path = Path(__file__).parent
 
 load_dotenv()
+
+# Sentry — only activate when DSN is configured
+_sentry_dsn = os.getenv("SENTRY_DSN")
+if _sentry_dsn:
+    sentry_sdk.init(dsn=_sentry_dsn)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_TOKEN")
 DISCORD_THREAD_TYPE = os.getenv("DISCORD_THREAD_TYPE")
@@ -56,13 +68,9 @@ with open(mod_path / "../config/taiga_discord_maps.yaml") as f:
 
     TAIGA_USER_TO_DISCORD_USER_MAP = yaml_config["taiga_discord_user_map"]
 
-    DISCORD_LOG_CHANNEL = yaml_config["discord_log_channels"]
 
 # Initialize the Discord bot
 bot = commands.Bot(command_prefix="!!!!", intents=intents)
-
-logger = util_logging.init_module_logger(__name__)
-listener = util_logging.start_listener()
 
 print("Discord Bot initialized.")
 
@@ -82,15 +90,14 @@ discord_chat_collector = DiscordChatCollector(
 data_collector_list = [discord_chat_collector]
 
 
-@util_logging.exception(__name__)
-def run_agent_in_cb_context(
+async def run_agent_in_cb_context(
         messages: List[HumanMessage],
         config: dict,
         cost_position: Optional[str] = None,
 ) -> dict:
-    """Run the agent graph and track token costs."""
+    """Run the agent graph asynchronously and track token costs."""
     with get_openai_callback() as cb:
-        result = scrum_agent.invoke(messages, config)
+        result = await scrum_agent.ainvoke(messages, config)
 
         if cost_position:
             if cost_position not in summed_up_open_ai_cost:
@@ -107,13 +114,9 @@ async def run_agent_async(
         config: dict,
         cost_position: Optional[str] = None,
 ) -> str:
-    """Run the agent graph in an executor while showing a typing indicator."""
+    """Run the agent graph while showing a typing indicator."""
     async with typing_channel.typing():
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(
-            None,
-            lambda: run_agent_in_cb_context(messages, config, cost_position),
-        )
+        result = await run_agent_in_cb_context(messages, config, cost_position)
     return result["messages"][-1].content
 
 
@@ -273,7 +276,6 @@ async def ensure_user_story_thread(
 
 
 @bot.event
-@util_logging.exception(__name__)
 async def on_message(message: discord.Message) -> None:
     """Handle incoming Discord messages."""
     if message.author == bot.user:
@@ -319,7 +321,6 @@ async def on_message(message: discord.Message) -> None:
     await send_split_message(message, str_result, reply=True)
 
 
-@util_logging.exception(__name__)
 async def manage_user_story_threads(project_slug: str) -> None:
     """Ensure that each Taiga user story has a corresponding Discord thread."""
     print("Manage user story threads started.")
@@ -341,7 +342,6 @@ async def manage_user_story_threads(project_slug: str) -> None:
 
 
 @bot.event
-@util_logging.exception(__name__)
 async def on_guild_join() -> None:
     """Called when the bot joins a guild."""
     print(f"Guild join: {bot.user} (ID: {bot.user.id})")
@@ -349,21 +349,18 @@ async def on_guild_join() -> None:
 
 
 @bot.event
-@util_logging.exception(__name__)
 async def on_guild_remove() -> None:
     print(f"Guild remove: {bot.user} (ID: {bot.user.id})")
     pass
 
 
 @bot.event
-@util_logging.exception(__name__)
 async def on_guild_update() -> None:
     print(f"Guild update: {bot.user} (ID: {bot.user.id})")
     pass
 
 
 @tasks.loop(hours=1)
-@util_logging.exception(__name__)
 async def update_taiga_threads() -> None:
     """Periodic task that syncs Taiga user stories with Discord threads."""
     print("Updating taiga threads started.")
@@ -372,7 +369,6 @@ async def update_taiga_threads() -> None:
 
 
 @tasks.loop(hours=24)
-@util_logging.exception(__name__)
 async def daily_datacollector_task() -> None:
     """Run daily housekeeping routines for data collection."""
     print("Daily data collector started.")
@@ -460,7 +456,6 @@ async def get_discord_thread_map(
 
 
 @tasks.loop(time=datetime.time(hour=8, minute=0, tzinfo=pytz.timezone("Europe/Berlin")))
-@util_logging.exception(__name__)
 async def scrum_master_task() -> None:
     """Daily task that posts stand-up messages."""
     print(f"Scrum master task started at {datetime.datetime.now()}")
@@ -504,13 +499,8 @@ async def scrum_master_task() -> None:
 
 
 @bot.event
-@util_logging.exception(__name__)
 async def on_ready() -> None:
     """Called when the Discord bot is fully ready."""
-    channel_list = [bot.get_channel(x) for x in DISCORD_LOG_CHANNEL]
-    util_logging.override_defaults(override=channel_list)
-    discord_log_worker.start()
-
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
 
     # Start MCP connections
@@ -539,19 +529,6 @@ async def on_close() -> None:
     await scrum_agent.stop()
     print("MCP connections closed.")
 
-
-@tasks.loop(seconds=10)
-async def discord_log_worker() -> None:
-    """Forward log records from the queue to Discord."""
-    try:
-        subject, rec, discord_channels = util_logging.discord_log_queue.get_nowait()
-    except util_logging.queue.Empty:
-        return
-
-    print(f"Captured log message: {subject}: {rec}")
-
-    for ch in discord_channels:
-        await ch.send(f"**{subject}**:\n\n" f"{rec}")
 
 
 if __name__ == "__main__":

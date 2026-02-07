@@ -1,5 +1,6 @@
 """Single ScrumAgent powered by MCP tools via LangGraph ReAct pattern."""
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -11,17 +12,12 @@ from langchain_community.tools.arxiv.tool import ArxivQueryRun
 from langchain_community.tools.ddg_search.tool import DuckDuckGoSearchResults
 from langchain_community.utilities import WikipediaAPIWrapper
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
 load_dotenv()
 
 mod_path = Path(__file__).parent
-
-# ── LLM configuration ──────────────────────────────────────────────
-DEFAULT_MODEL = os.getenv("SCRUM_AGENT_MODEL", "gpt-4o")
-DEFAULT_TEMPERATURE = float(os.getenv("SCRUM_AGENT_TEMPERATURE", "0"))
 
 # ── System prompt ───────────────────────────────────────────────────
 SYSTEM_PROMPT = """\
@@ -50,6 +46,20 @@ and Wikipedia for relevant information.
 """
 
 
+def _resolve_env(env_map: dict[str, str]) -> dict[str, str]:
+    """Resolve ${VAR} references from os.environ, skip unset vars."""
+    resolved = {}
+    for key, val in env_map.items():
+        if isinstance(val, str) and val.startswith("${") and val.endswith("}"):
+            env_key = val[2:-1]
+            env_val = os.environ.get(env_key)
+            if env_val is not None:
+                resolved[key] = env_val
+        else:
+            resolved[key] = str(val)
+    return resolved
+
+
 def _load_mcp_config() -> dict[str, dict[str, Any]]:
     """Load MCP server configuration from YAML."""
     config_path = mod_path / "../config/mcp_config.yaml"
@@ -60,11 +70,14 @@ def _load_mcp_config() -> dict[str, dict[str, Any]]:
     for name, cfg in raw.items():
         transport = cfg.get("transport", "stdio")
         if transport == "stdio":
-            mcp_config[name] = {
+            entry: dict[str, Any] = {
                 "transport": "stdio",
                 "command": cfg["command"],
                 "args": cfg.get("args", []),
             }
+            if "env" in cfg:
+                entry["env"] = _resolve_env(cfg["env"])
+            mcp_config[name] = entry
         elif transport == "streamable_http":
             mcp_config[name] = {
                 "transport": "streamable_http",
@@ -98,6 +111,28 @@ def _build_web_tools() -> list:
     return tools
 
 
+def _build_llm():
+    """Create the LLM based on SCRUM_AGENT_MODEL env var.
+
+    Supported prefixes:
+      - "claude*"   → ChatAnthropic
+      - "ollama/*"  → ChatOllama (strip prefix)
+      - default     → ChatOpenAI
+    """
+    model = os.getenv("SCRUM_AGENT_MODEL", "gpt-4o")
+    temp = float(os.getenv("SCRUM_AGENT_TEMPERATURE", "0"))
+
+    if model.startswith("claude"):
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(model=model, temperature=temp)
+    elif model.startswith("ollama/"):
+        from langchain_ollama import ChatOllama
+        return ChatOllama(model=model.removeprefix("ollama/"), temperature=temp)
+    else:
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(model_name=model, temperature=temp)
+
+
 def _build_checkpointer():
     """Create a checkpointer — MongoDB if configured, else MemorySaver."""
     mongo_url = os.getenv("MONGO_DB_URL")
@@ -113,23 +148,32 @@ class ScrumAgent:
     """Manages the MCP client lifecycle and provides the compiled agent graph."""
 
     def __init__(self) -> None:
-        self._mcp_client: MultiServerMCPClient | None = None
         self._graph = None
 
     async def start(self) -> None:
-        """Initialize MCP connections and build the agent graph."""
-        mcp_config = _load_mcp_config()
-        self._mcp_client = MultiServerMCPClient(mcp_config)
-        await self._mcp_client.__aenter__()
+        """Initialize MCP connections and build the agent graph.
 
-        mcp_tools = await self._mcp_client.get_tools()
+        Each MCP server is connected individually so that a single
+        misconfigured server (e.g. missing token) does not prevent the
+        remaining servers from loading.
+        """
+        logger = logging.getLogger(__name__)
+        mcp_config = _load_mcp_config()
+
+        mcp_tools: list = []
+        for name, server_cfg in mcp_config.items():
+            try:
+                client = MultiServerMCPClient({name: server_cfg})
+                tools = await client.get_tools()
+                mcp_tools.extend(tools)
+                logger.info("MCP server '%s' loaded %d tools", name, len(tools))
+            except Exception:
+                logger.exception("MCP server '%s' failed to connect — skipping", name)
+
         web_tools = _build_web_tools()
         all_tools = mcp_tools + web_tools
 
-        llm = ChatOpenAI(
-            model_name=DEFAULT_MODEL,
-            temperature=DEFAULT_TEMPERATURE,
-        )
+        llm = _build_llm()
         checkpointer = _build_checkpointer()
 
         self._graph = create_react_agent(
@@ -141,9 +185,7 @@ class ScrumAgent:
 
     async def stop(self) -> None:
         """Shut down MCP connections."""
-        if self._mcp_client:
-            await self._mcp_client.__aexit__(None, None, None)
-            self._mcp_client = None
+        self._graph = None
 
     @property
     def graph(self):
