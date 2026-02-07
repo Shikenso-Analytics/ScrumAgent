@@ -1,7 +1,9 @@
 """Single ScrumAgent powered by MCP tools via LangGraph ReAct pattern."""
 
+import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,12 @@ from langchain_community.utilities import WikipediaAPIWrapper
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.agents import create_agent
+
+try:
+    from langchain_taiga import get_wiki_page_tool, list_wiki_pages_tool
+except ImportError:
+    get_wiki_page_tool = None
+    list_wiki_pages_tool = None
 
 load_dotenv()
 
@@ -149,11 +157,90 @@ def _build_checkpointer():
     return MemorySaver()
 
 
+_SKILL_PREFIX = "skills-"
+
+
+def _slug_to_title(slug: str) -> str:
+    """Convert a skill slug to a human-readable title.
+
+    ``skills-wiki-formatting`` → ``Wiki Formatting``
+    """
+    return slug.removeprefix(_SKILL_PREFIX).replace("-", " ").title()
+
+
+def _load_skills(project_slug: str) -> str:
+    """Load skill definitions from Taiga wiki pages.
+
+    Uses ``list_wiki_pages_tool`` to discover all pages with the
+    ``skills-`` prefix, then fetches each one and returns combined content.
+    """
+    logger = logging.getLogger(__name__)
+
+    if list_wiki_pages_tool is None or get_wiki_page_tool is None:
+        logger.warning("langchain-taiga not installed — skipping skills")
+        return ""
+
+    try:
+        raw = list_wiki_pages_tool.invoke({"project_slug": project_slug})
+        pages = json.loads(raw)
+    except Exception:
+        logger.warning("Failed to list wiki pages — skipping skills", exc_info=True)
+        return ""
+
+    if isinstance(pages, dict) and "error" in pages:
+        logger.warning("Could not list wiki pages: %s", pages["error"])
+        return ""
+
+    skill_slugs = sorted(
+        p["slug"] for p in pages
+        if p.get("slug", "").startswith(_SKILL_PREFIX)
+    )
+
+    if not skill_slugs:
+        logger.info("No skill pages found (prefix '%s')", _SKILL_PREFIX)
+        return ""
+
+    parts: list[str] = []
+    for slug in skill_slugs:
+        try:
+            raw = get_wiki_page_tool.invoke({
+                "project_slug": project_slug,
+                "wiki_slug": slug,
+            })
+            skill = json.loads(raw)
+        except Exception:
+            logger.warning("Failed to fetch skill '%s' — skipping", slug)
+            continue
+        if "error" in skill:
+            logger.warning("Skill page '%s' not found", slug)
+            continue
+        skill_content = skill.get("content", "")
+        if skill_content:
+            title = _slug_to_title(slug)
+            parts.append(f"### {title}\n{skill_content}")
+            logger.info("Loaded skill: %s", title)
+
+    if not parts:
+        return ""
+
+    return (
+        "\n\n## Loaded Skills\n"
+        "Follow these skill instructions when they apply to your current task.\n\n"
+        + "\n\n".join(parts)
+    )
+
+
 class ScrumAgent:
     """Manages the MCP client lifecycle and provides the compiled agent graph."""
 
     def __init__(self) -> None:
         self._graph = None
+        self._llm = None
+        self._all_tools: list = []
+        self._checkpointer = None
+        self._skills_text: str = ""
+        self._skills_loaded_at: float = 0
+        self._skills_ttl: float = float(os.getenv("SKILLS_TTL_SECONDS", "300"))
 
     async def start(self) -> None:
         """Initialize MCP connections and build the agent graph.
@@ -176,16 +263,46 @@ class ScrumAgent:
                 logger.exception("MCP server '%s' failed to connect — skipping", name)
 
         web_tools = _build_web_tools()
-        all_tools = mcp_tools + web_tools
 
-        llm = _build_llm()
-        checkpointer = _build_checkpointer()
+        self._llm = _build_llm()
+        self._checkpointer = _build_checkpointer()
+        self._all_tools = mcp_tools + web_tools
 
+        # Initial skills load + graph build
+        self._refresh_skills()
+        self._build_graph()
+
+    def _refresh_skills(self) -> None:
+        """Reload skills from Taiga wiki if TTL has expired."""
+        logger = logging.getLogger(__name__)
+        now = time.monotonic()
+        if now - self._skills_loaded_at < self._skills_ttl:
+            return  # cache still valid
+
+        project_slug = os.getenv("TAIGA_PROJECT_SLUG")
+        if not project_slug:
+            self._skills_text = ""
+            self._skills_loaded_at = now
+            return
+
+        new_skills = _load_skills(project_slug)
+        if new_skills != self._skills_text:
+            self._skills_text = new_skills
+            if new_skills:
+                logger.info("Skills refreshed from project '%s'", project_slug)
+            # Rebuild only if graph already exists (not during initial start)
+            if self._graph is not None:
+                self._build_graph()
+        self._skills_loaded_at = now
+
+    def _build_graph(self) -> None:
+        """(Re)build the agent graph with current skills."""
+        system_prompt = SYSTEM_PROMPT + self._skills_text
         self._graph = create_agent(
-            llm,
-            all_tools,
-            system_prompt=SYSTEM_PROMPT,
-            checkpointer=checkpointer,
+            self._llm,
+            self._all_tools,
+            system_prompt=system_prompt,
+            checkpointer=self._checkpointer,
         )
 
     async def stop(self) -> None:
@@ -200,9 +317,11 @@ class ScrumAgent:
         return self._graph
 
     def invoke(self, messages: list, config: RunnableConfig) -> dict:
-        """Synchronous invoke for compatibility with existing code."""
+        """Synchronous invoke — refreshes skills if TTL expired."""
+        self._refresh_skills()
         return self.graph.invoke({"messages": messages}, config)
 
     async def ainvoke(self, messages: list, config: RunnableConfig) -> dict:
-        """Async invoke."""
+        """Async invoke — refreshes skills if TTL expired."""
+        self._refresh_skills()
         return await self.graph.ainvoke({"messages": messages}, config)

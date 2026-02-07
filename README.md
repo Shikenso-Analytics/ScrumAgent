@@ -27,11 +27,12 @@
 5. [Running Locally](#5-running-locally)
 6. [Environment Variables](#6-environment-variables)
 7. [MCP Server Configuration](#7-mcp-server-configuration)
-8. [Usage Examples](#8-usage-examples)
-9. [Testing](#9-testing)
-10. [Tracing with LangSmith](#10-tracing-with-langsmith)
-11. [Roadmap](#11-roadmap)
-12. [Contact](#12-contact)
+8. [Wiki-based Skills](#8-wiki-based-skills)
+9. [Usage Examples](#9-usage-examples)
+10. [Testing](#10-testing)
+11. [Tracing with LangSmith](#11-tracing-with-langsmith)
+12. [Roadmap](#12-roadmap)
+13. [Contact](#13-contact)
 
 ---
 
@@ -60,8 +61,15 @@ Scrum Agent is designed for **small dev teams** without a dedicated Scrum Master
 
 ### Taiga Project Management
 - Retrieve, create, and update user stories, tasks, and issues
+- Wiki page management (list, read, create, update with optimistic locking)
 - Sprint tracking and status updates
 - Watchers and assignee management
+
+### Wiki-based Skills
+- Dynamic system prompt extensions loaded from Taiga wiki pages
+- No code changes needed — create a wiki page with the `skills-` prefix and it is automatically discovered
+- TTL-based auto-refresh (default: 5 minutes) — update skills without restarting the bot
+- Graceful degradation when Taiga is unreachable
 
 ### MCP Tool Servers
 - **Taiga MCP** — Full Taiga API access via `langchain-taiga`
@@ -95,8 +103,10 @@ Scrum Agent v2.0 uses a **single ReAct agent** (LangGraph `create_react_agent`) 
 ```
 Discord Bot (main_discord_bot.py)
   └── ScrumAgent (agent.py)
+        ├── Skills Loader (Taiga wiki → system prompt, TTL-cached)
         ├── LangGraph ReAct Agent
         │     ├── LLM (OpenAI / Anthropic / Ollama)
+        │     ├── System Prompt (base + loaded skills)
         │     └── Tools
         │           ├── MCP: Taiga (langchain-taiga)
         │           ├── MCP: GitHub (Docker container)
@@ -269,6 +279,8 @@ Copy `.env.example` to `.env` and fill in the values:
 | `TAIGA_TOKEN` | Yes* | Taiga auth token (alternative to username/password) |
 | `TAIGA_USERNAME` | Yes* | Taiga username (alternative to token) |
 | `TAIGA_PASSWORD` | Yes* | Taiga password (alternative to token) |
+| `TAIGA_PROJECT_SLUG` | No | Taiga project slug for loading wiki-based skills |
+| `SKILLS_TTL_SECONDS` | No | Skills cache TTL in seconds. Default: `300` (5 minutes) |
 | `MONGO_DB_URL` | No | MongoDB URL for persistent checkpointing |
 | `LANGCHAIN_TRACING_V2` | No | Set to `true` to enable LangSmith tracing |
 | `LANGCHAIN_API_KEY` | No | LangSmith API key |
@@ -296,7 +308,54 @@ The `env:` block ensures API keys and tokens are passed to the MCP subprocess. W
 
 ---
 
-## 8. Usage Examples
+## 8. Wiki-based Skills
+
+Skills are dynamic system prompt extensions stored as Taiga wiki pages. They allow you to define agent behavior without changing code — just edit a wiki page and the bot picks it up automatically.
+
+### How It Works
+
+1. Set `TAIGA_PROJECT_SLUG` in your `.env` (e.g. `wahed`)
+2. Create wiki pages in that project with the `skills-` prefix
+3. On each agent invocation, the skills loader checks if the TTL has expired
+4. If expired, it calls `list_wiki_pages_tool` to discover all `skills-*` pages
+5. Each skill page is fetched and its content is appended to the system prompt
+6. The agent graph is rebuilt only when skill content has actually changed
+
+### Creating a Skill
+
+Create a wiki page in your Taiga project with a slug starting with `skills-`:
+
+**Example:** Wiki page with slug `skills-wiki-formatting`
+
+```markdown
+When creating or editing Taiga wiki pages, follow these formatting rules:
+
+**Internal wiki links**: Use `[Display Text](wiki-slug)` with just the slug, not full URLs.
+
+**Headings**: Use `#`, `##`, `###` for structure.
+
+**Lists**: Use `-` for bullet lists, `1.` for numbered lists.
+```
+
+The slug `skills-wiki-formatting` becomes the title **Wiki Formatting** in the system prompt.
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TAIGA_PROJECT_SLUG` | _(unset)_ | Which Taiga project to load skills from. Skills are disabled if unset. |
+| `SKILLS_TTL_SECONDS` | `300` | How often to check for skill updates (in seconds). |
+
+### Error Handling
+
+- If `TAIGA_PROJECT_SLUG` is not set, skills are silently disabled
+- If Taiga is unreachable, the previously cached skills remain active
+- If an individual skill page fails to load, only that skill is skipped
+- If `langchain-taiga` is not installed, skills are skipped with a warning
+
+---
+
+## 9. Usage Examples
 
 ### Updating a User Story
 
@@ -330,7 +389,7 @@ Join our [Discord Server](https://discord.gg/ADV99kyfjg) to test the Scrum Agent
 
 ---
 
-## 9. Testing
+## 10. Testing
 
 ### Run All Tests
 
@@ -342,7 +401,7 @@ uv run python -m pytest tests/ -v
 
 | File | Description |
 |------|-------------|
-| `tests/test_agent.py` | Unit tests for ScrumAgent (config, web tools, system prompt) |
+| `tests/test_agent.py` | Unit tests for ScrumAgent (config, web tools, system prompt, skills loading) |
 | `tests/test_integration.py` | Integration tests with real MCP connections (skipped if no credentials) |
 | `tests/test_mcp_discord_chroma.py` | Tests for the custom Discord Chroma MCP server |
 | `tests/test_standup_schedule.py` | Tests for stand-up scheduling logic |
@@ -359,7 +418,7 @@ uv run python -m pytest tests/test_integration.py -v
 
 ---
 
-## 10. Tracing with LangSmith
+## 11. Tracing with LangSmith
 
 LangGraph 1.x automatically traces all operations when the following env vars are set:
 
@@ -376,13 +435,13 @@ No additional code or callbacks needed. All LLM calls, tool invocations, and age
 
 ---
 
-## 11. Roadmap
+## 12. Roadmap
 
 See the [Taiga Project](https://tree.taiga.io/project/hemati-scrum-agent/kanban) for the latest updates and planned features.
 
 ---
 
-## 12. Contact
+## 13. Contact
 
 For inquiries, support, or contributions, please open an issue [here](https://github.com/Shikenso-Analytics/ScrumAgent/issues) or at [Taiga](https://tree.taiga.io/project/hemati-scrum-agent/issues)
 or join our [Discord](https://discord.gg/ADV99kyfjg) or contact alexander.henlein@shikenso.com
