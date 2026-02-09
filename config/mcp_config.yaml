@@ -1,0 +1,55 @@
+# MCP Server Configuration for ScrumAgent
+#
+# Each entry defines an MCP server that will be connected via MultiServerMCPClient.
+# Transport options: "stdio" (subprocess) or "streamable_http" (remote).
+#
+# Environment variables use ${VAR} syntax and are resolved from the process
+# environment at startup. Unset variables are silently skipped.
+
+# Taiga Project Management — provided by langchain-taiga MCP server
+taiga:
+  transport: stdio
+  command: python
+  args: ["-m", "langchain_taiga.mcp_server"]
+  env:
+    TAIGA_API_URL: "${TAIGA_API_URL}"
+    TAIGA_URL: "${TAIGA_URL}"
+    TAIGA_TOKEN: "${TAIGA_TOKEN}"
+    TAIGA_USERNAME: "${TAIGA_USERNAME}"
+    TAIGA_PASSWORD: "${TAIGA_PASSWORD}"
+
+# GitHub — official GitHub MCP server (requires Docker or Go binary)
+# The env block ensures stdio_client passes the token to the Docker subprocess,
+# and Docker's -e flag then forwards it into the container.
+github:
+  transport: stdio
+  command: docker
+  args:
+    - run
+    - -i
+    - --rm
+    - -e
+    - GITHUB_PERSONAL_ACCESS_TOKEN
+    - ghcr.io/github/github-mcp-server
+  env:
+    GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+
+# Discord Chroma Search — our custom MCP server for semantic search
+discord_chroma:
+  transport: stdio
+  command: python
+  args: ["mcp_servers/discord_chroma_server.py"]
+  env:
+    CHROMA_DB_PATH: "${CHROMA_DB_PATH}"
+    CHROMA_DB_DISCORD_CHAT_DATA_NAME: "${CHROMA_DB_DISCORD_CHAT_DATA_NAME}"
+    OPENAI_API_KEY: "${OPENAI_API_KEY}"
+
+# Discord API (barryyip0625/mcp-discord) — search, read, send messages
+# Install: npm install -g mcp-discord
+# Requires DISCORD_TOKEN env var
+discord_api:
+  transport: stdio
+  command: npx
+  args: ["-y", "mcp-discord"]
+  env:
+    DISCORD_TOKEN: "${DISCORD_TOKEN}"

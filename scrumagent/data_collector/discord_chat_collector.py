@@ -1,5 +1,6 @@
 import datetime
 import itertools
+import logging
 import os
 import re
 from typing import Tuple, List, Optional
@@ -9,15 +10,12 @@ from discord import Thread
 from langchain_chroma import Chroma
 
 from .base_collector import BaseCollector
-from scrumagent import util_logging
 
 
 # Regular expression to match URLs
 URL_REGEX = re.compile(r'https?://\S+')
 
-
-logger = util_logging.init_module_logger(__name__)
-listener = util_logging.start_listener()
+logger = logging.getLogger(__name__)
 
 
 class DiscordChatCollector(BaseCollector):
@@ -39,13 +37,13 @@ class DiscordChatCollector(BaseCollector):
         super().__init__(bot, chroma_db)
         self.filter_channels = filter_channels
 
-    @util_logging.exception(__name__)
+
     async def on_startup(self) -> None:
         """Collect unread messages when the bot starts."""
 
         await self.check_all_unread_messages()
 
-    @util_logging.exception(__name__)
+
     async def check_all_unread_messages(self) -> None:
         """Iterate over all channels and collect new messages."""
 
@@ -65,7 +63,7 @@ class DiscordChatCollector(BaseCollector):
                     except discord.Forbidden:
                         print(f"  - No access to channel: {channel.name}")
 
-    @util_logging.exception(__name__)
+
     def get_last_msg_timestamps_in_db(self, guild, channel) -> Optional[float]:
         """Return the timestamp of the newest stored message."""
         chats = self.db.get(
@@ -77,7 +75,7 @@ class DiscordChatCollector(BaseCollector):
         last_timetamp = max([chat["timestamp"] for chat in chats["metadatas"]]) if chats else None
         return last_timetamp
 
-    @util_logging.exception(__name__)
+
     def add_discord_messages_to_db(
         self,
         guild,
@@ -107,7 +105,7 @@ class DiscordChatCollector(BaseCollector):
             print(metadatas)
             return self.add_to_db_batch(ids=ids, texts=texts, metadatas=metadatas)
 
-    @util_logging.exception(__name__)
+
     def get_files_from_messages(
         self,
         guild,
@@ -152,7 +150,7 @@ class DiscordChatCollector(BaseCollector):
         if len(ids) > 0:
             return self.add_to_db_batch(ids=ids, texts=texts, metadatas=metadatas)
 
-    @util_logging.exception(__name__)
+
     def get_links_from_messages(
         self,
         guild,
@@ -185,7 +183,7 @@ class DiscordChatCollector(BaseCollector):
         if len(ids) > 0:
             return self.add_to_db_batch(ids=ids, texts=texts, metadatas=metadatas)
 
-    @util_logging.exception(__name__)
+
     def get_surrounding_docs(self, doc_metadata, num_before: int = 3, num_after: int = 3) -> Tuple[List, List]:
         """Return messages surrounding a given document.
 
