@@ -10,7 +10,6 @@ import discord
 import httpx
 import pytz
 import sentry_sdk
-from sentry_sdk.integrations.langchain import LangchainIntegration
 import yaml
 from discord import ChannelType, Message
 from discord.ext import commands, tasks
@@ -18,12 +17,13 @@ from dotenv import load_dotenv
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.messages import HumanMessage
 from langchain_taiga.tools.taiga_tools import get_entity_by_ref_tool, get_project
+from sentry_sdk.integrations.langchain import LangchainIntegration
 from taiga.models import UserStory
 
 from config import scrum_promts
 from scrumagent.agent import ScrumAgent
 from scrumagent.data_collector.discord_chat_collector import DiscordChatCollector
-from scrumagent.utils import split_text_smart, init_discord_chroma_db
+from scrumagent.utils import init_discord_chroma_db, split_text_smart
 
 mod_path = Path(__file__).parent
 
@@ -509,7 +509,10 @@ async def scrum_master_task() -> None:
             await send_split_message(thread, str_result)
 
 
-@bot.tree.command(name="clear", description="Konversation zurücksetzen — startet eine saubere neue Unterhaltung")
+@bot.tree.command(
+    name="clear",
+    description="Konversation zurücksetzen — startet eine saubere neue Unterhaltung",
+)
 async def clear_command(interaction: discord.Interaction) -> None:
     """Slash command to clear the conversation history for the current channel."""
     await interaction.response.defer(ephemeral=True)
@@ -546,14 +549,14 @@ async def on_ready() -> None:
     for assistant in data_collector_list:
         await assistant.on_startup()
 
-    for project_slug in TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP.keys():
-        await manage_user_story_threads(project_slug)
+    # for project_slug in TAIGA_SLAG_TO_DISCORD_CHANNEL_MAP.keys():
+    #     await manage_user_story_threads(project_slug)
 
     await bot.tree.sync()
 
-    scrum_master_task.start()
-    daily_datacollector_task.start()
-    update_taiga_threads.start()
+    # scrum_master_task.start()
+    # daily_datacollector_task.start()
+    # update_taiga_threads.start()
     print(f"Tasks started.")
 
 
